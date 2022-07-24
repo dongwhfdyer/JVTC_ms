@@ -112,7 +112,7 @@ def kaiming_uniform(inputs_shape, a=0., mode='fan_in', nonlinearity='leaky_relu'
     return np.random.uniform(-bound, bound, size=inputs_shape).astype(np.float32)
 
 
-def _conv3x3(in_channel, out_channel, stride=1, use_se=False, res_base=False):
+def _conv3x3(in_channel, out_channel, stride=1, use_se=False, ):
     if use_se:
         weight = conv_variance_scaling_initializer(in_channel, out_channel, kernel_size=3)
     else:
@@ -120,14 +120,12 @@ def _conv3x3(in_channel, out_channel, stride=1, use_se=False, res_base=False):
         weight = Tensor(kaiming_normal(weight_shape, mode="fan_out", nonlinearity='relu'))
         if config.net_name == "resnet152":
             weight = _weight_variable(weight_shape)
-    if res_base:
-        return nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=stride,
-                         padding=1, pad_mode='pad', weight_init=weight)
+
     return nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=stride,
                      padding=0, pad_mode='same', weight_init=weight)
 
 
-def _conv1x1(in_channel, out_channel, stride=1, use_se=False, res_base=False):
+def _conv1x1(in_channel, out_channel, stride=1, use_se=False, ):
     if use_se:
         weight = conv_variance_scaling_initializer(in_channel, out_channel, kernel_size=1)
     else:
@@ -135,14 +133,12 @@ def _conv1x1(in_channel, out_channel, stride=1, use_se=False, res_base=False):
         weight = Tensor(kaiming_normal(weight_shape, mode="fan_out", nonlinearity='relu'))
         if config.net_name == "resnet152":
             weight = _weight_variable(weight_shape)
-    if res_base:
-        return nn.Conv2d(in_channel, out_channel, kernel_size=1, stride=stride,
-                         padding=0, pad_mode='pad', weight_init=weight)
+
     return nn.Conv2d(in_channel, out_channel, kernel_size=1, stride=stride,
                      padding=0, pad_mode='same', weight_init=weight)
 
 
-def _conv7x7(in_channel, out_channel, stride=1, use_se=False, res_base=False):
+def _conv7x7(in_channel, out_channel, stride=1, use_se=False, ):
     if use_se:
         weight = conv_variance_scaling_initializer(in_channel, out_channel, kernel_size=7)
     else:
@@ -150,17 +146,11 @@ def _conv7x7(in_channel, out_channel, stride=1, use_se=False, res_base=False):
         weight = Tensor(kaiming_normal(weight_shape, mode="fan_out", nonlinearity='relu'))
         if config.net_name == "resnet152":
             weight = _weight_variable(weight_shape)
-    if res_base:
-        return nn.Conv2d(in_channel, out_channel,
-                         kernel_size=7, stride=stride, padding=3, pad_mode='pad', weight_init=weight)
     return nn.Conv2d(in_channel, out_channel,
                      kernel_size=7, stride=stride, padding=0, pad_mode='same', weight_init=weight)
 
 
-def _bn(channel, res_base=False):
-    if res_base:
-        return nn.BatchNorm2d(channel, eps=1e-5, momentum=0.1,
-                              gamma_init=1, beta_init=0, moving_mean_init=0, moving_var_init=1)
+def _bn(channel, ):
     return nn.BatchNorm2d(channel, eps=1e-4, momentum=0.9,
                           gamma_init=1, beta_init=0, moving_mean_init=0, moving_var_init=1)
 
@@ -284,69 +274,6 @@ class ResidualBlock(nn.Cell):
         return out
 
 
-class ResidualBlockBase(nn.Cell):
-    """
-    ResNet V1 residual block definition.
-
-    Args:
-        in_channel (int): Input channel.
-        out_channel (int): Output channel.
-        stride (int): Stride size for the first convolutional layer. Default: 1.
-        use_se (bool): Enable SE-ResNet50 net. Default: False.
-        se_block(bool): Use se block in SE-ResNet50 net. Default: False.
-        res_base (bool): Enable parameter setting of resnet18. Default: True.
-
-    Returns:
-        Tensor, output tensor.
-
-    Examples:
-        >>> ResidualBlockBase(3, 256, stride=2)
-    """
-
-    def __init__(self,
-                 in_channel,
-                 out_channel,
-                 stride=1,
-                 use_se=False,
-                 se_block=False,
-                 res_base=True):
-        super(ResidualBlockBase, self).__init__()
-        self.res_base = res_base
-        self.conv1 = _conv3x3(in_channel, out_channel, stride=stride, res_base=self.res_base)
-        self.bn1d = _bn(out_channel)
-        self.conv2 = _conv3x3(out_channel, out_channel, stride=1, res_base=self.res_base)
-        self.bn2d = _bn(out_channel)
-        self.relu = nn.ReLU()
-
-        self.down_sample = False
-        if stride != 1 or in_channel != out_channel:
-            self.down_sample = True
-
-        self.down_sample_layer = None
-        if self.down_sample:
-            self.down_sample_layer = nn.SequentialCell([_conv1x1(in_channel, out_channel, stride,
-                                                                 use_se=use_se, res_base=self.res_base),
-                                                        _bn(out_channel, res_base)])
-
-    def construct(self, x):
-        identity = x
-
-        out = self.conv1(x)
-        out = self.bn1d(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2d(out)
-
-        if self.down_sample:
-            identity = self.down_sample_layer(identity)
-
-        out = out + identity
-        out = self.relu(out)
-
-        return out
-
-
 class ResNet(nn.Cell):
     """
     ResNet architecture.
@@ -381,16 +308,15 @@ class ResNet(nn.Cell):
                  out_channels,
                  strides,
                  num_classes,
-                 res_base=False):
+                 ):
         super(ResNet, self).__init__()
 
         if not len(layer_nums) == len(in_channels) == len(out_channels) == 4:
             raise ValueError("the length of layer_num, in_channels, out_channels list must be 4!")
-        self.res_base = res_base
         self.se_block = False
 
-        self.conv1 = _conv7x7(3, 64, stride=2, res_base=self.res_base)
-        self.bn1 = _bn(64, self.res_base)
+        self.conv1 = _conv7x7(3, 64, stride=2, )
+        self.bn1 = _bn(64, )
         self.relu = P.ReLU()
 
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, pad_mode="same")
@@ -419,6 +345,7 @@ class ResNet(nn.Cell):
                                        out_channel=out_channels[3],
                                        stride=strides[3],
                                        se_block=self.se_block)
+        self.feat = nn.Dense()
 
         self.mean = P.ReduceMean(keep_dims=True)
         self.flatten = nn.Flatten()
@@ -468,8 +395,8 @@ class ResNet(nn.Cell):
         c3 = self.layer2(c2)
         c4 = self.layer3(c3)
         c5 = self.layer4(c4)
-        c5 = nn.AvgPool2d(c5, c5.shape[2:])
-
+        c5 = nn.AvgPool2d(c5, c5.shape[2:])  # kuhn edited
+        c5 = c5.view(c5.shape[0], -1)
 
         out = self.mean(c5, (2, 3))
         out = self.flatten(out)
