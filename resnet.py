@@ -381,67 +381,50 @@ class ResNet(nn.Cell):
                  out_channels,
                  strides,
                  num_classes,
-                 use_se=False,
                  res_base=False):
         super(ResNet, self).__init__()
 
         if not len(layer_nums) == len(in_channels) == len(out_channels) == 4:
             raise ValueError("the length of layer_num, in_channels, out_channels list must be 4!")
-        self.use_se = use_se
         self.res_base = res_base
         self.se_block = False
-        if self.use_se:
-            self.se_block = True
 
-        if self.use_se:
-            self.conv1_0 = _conv3x3(3, 32, stride=2, use_se=self.use_se)
-            self.bn1_0 = _bn(32)
-            self.conv1_1 = _conv3x3(32, 32, stride=1, use_se=self.use_se)
-            self.bn1_1 = _bn(32)
-            self.conv1_2 = _conv3x3(32, 64, stride=1, use_se=self.use_se)
-        else:
-            self.conv1 = _conv7x7(3, 64, stride=2, res_base=self.res_base)
+        self.conv1 = _conv7x7(3, 64, stride=2, res_base=self.res_base)
         self.bn1 = _bn(64, self.res_base)
         self.relu = P.ReLU()
 
-        if self.res_base:
-            self.pad = nn.Pad(paddings=((0, 0), (0, 0), (1, 1), (1, 1)))
-            self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, pad_mode="valid")
-        else:
-            self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, pad_mode="same")
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, pad_mode="same")
 
         self.layer1 = self._make_layer(block,
                                        layer_nums[0],
                                        in_channel=in_channels[0],
                                        out_channel=out_channels[0],
                                        stride=strides[0],
-                                       use_se=self.use_se)
+                                       )
         self.layer2 = self._make_layer(block,
                                        layer_nums[1],
                                        in_channel=in_channels[1],
                                        out_channel=out_channels[1],
                                        stride=strides[1],
-                                       use_se=self.use_se)
+                                       )
         self.layer3 = self._make_layer(block,
                                        layer_nums[2],
                                        in_channel=in_channels[2],
                                        out_channel=out_channels[2],
                                        stride=strides[2],
-                                       use_se=self.use_se,
                                        se_block=self.se_block)
         self.layer4 = self._make_layer(block,
                                        layer_nums[3],
                                        in_channel=in_channels[3],
                                        out_channel=out_channels[3],
                                        stride=strides[3],
-                                       use_se=self.use_se,
                                        se_block=self.se_block)
 
         self.mean = P.ReduceMean(keep_dims=True)
         self.flatten = nn.Flatten()
-        self.end_point = _fc(out_channels[3], num_classes, use_se=self.use_se)
+        self.end_point = _fc(out_channels[3], num_classes, )
 
-    def _make_layer(self, block, layer_num, in_channel, out_channel, stride, use_se=False, se_block=False):
+    def _make_layer(self, block, layer_num, in_channel, out_channel, stride, se_block=False):
         """
         Make stage network of ResNet.
 
@@ -460,48 +443,39 @@ class ResNet(nn.Cell):
         """
         layers = []
 
-        resnet_block = block(in_channel, out_channel, stride=stride, use_se=use_se)
+        resnet_block = block(in_channel, out_channel, stride=stride, )
         layers.append(resnet_block)
         if se_block:
             for _ in range(1, layer_num - 1):
-                resnet_block = block(out_channel, out_channel, stride=1, use_se=use_se)
+                resnet_block = block(out_channel, out_channel, stride=1, )
                 layers.append(resnet_block)
-            resnet_block = block(out_channel, out_channel, stride=1, use_se=use_se, se_block=se_block)
+            resnet_block = block(out_channel, out_channel, stride=1, )
             layers.append(resnet_block)
         else:
             for _ in range(1, layer_num):
-                resnet_block = block(out_channel, out_channel, stride=1, use_se=use_se)
+                resnet_block = block(out_channel, out_channel, stride=1, )
                 layers.append(resnet_block)
         return nn.SequentialCell(layers)
 
     def construct(self, x):
-        if self.use_se:
-            x = self.conv1_0(x)
-            x = self.bn1_0(x)
-            x = self.relu(x)
-            x = self.conv1_1(x)
-            x = self.bn1_1(x)
-            x = self.relu(x)
-            x = self.conv1_2(x)
-        else:
-            x = self.conv1(x)
+        x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
-        if self.res_base:
-            x = self.pad(x)
+
         c1 = self.maxpool(x)
 
         c2 = self.layer1(c1)
         c3 = self.layer2(c2)
         c4 = self.layer3(c3)
         c5 = self.layer4(c4)
+        c5 = nn.AvgPool2d(c5, c5.shape[2:])
+
 
         out = self.mean(c5, (2, 3))
         out = self.flatten(out)
         out = self.end_point(out)
 
         return out
-
 
 
 def resnet50(class_num=10):
@@ -523,33 +497,6 @@ def resnet50(class_num=10):
                   [256, 512, 1024, 2048],
                   [1, 2, 2, 2],
                   class_num)
-
-
-def se_resnet50(class_num=1001):
-    """
-    Get SE-ResNet50 neural network.
-
-    Args:
-        class_num (int): Class number.
-
-    Returns:
-        Cell, cell instance of SE-ResNet50 neural network.
-
-    Examples:
-        >>> net = se-resnet50(1001)
-    """
-    return ResNet(ResidualBlock,
-                  [3, 4, 6, 3],
-                  [64, 256, 512, 1024],
-                  [256, 512, 1024, 2048],
-                  [1, 2, 2, 2],
-                  class_num,
-                  use_se=True)
-
-
-
-
-
 
 
 if __name__ == '__main__':
