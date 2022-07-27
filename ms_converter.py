@@ -4,112 +4,6 @@ from mindspore import save_checkpoint, Parameter, Tensor, load_param_into_net
 from mindspore.common.initializer import initializer
 
 
-# def torch_to_ms(model, torch_model, save_path):
-#     """
-#     Updates mobilenetv2 model mindspore param's data from torch param's data.
-#     Args:
-#         model: mindspore model
-#         torch_model: torch model
-#     """
-#     print("start load")
-#     # load torch parameter and mindspore parameter
-#     torch_param_dict = torch_model
-#     ms_param_dict = model.parameters_dict()
-#     count = 0
-#     for ms_key in ms_param_dict.keys():
-#         ms_key_tmp = ms_key.split('.')
-#         if ms_key_tmp[0] == 'bert_embedding_lookup':
-#             count += 1
-#             update_torch_to_ms(torch_param_dict, ms_param_dict, 'embeddings.word_embeddings.weight', ms_key)
-#
-#         elif ms_key_tmp[0] == 'bert_embedding_postprocessor':
-#             if ms_key_tmp[1] == "token_type_embedding":
-#                 count += 1
-#                 update_torch_to_ms(torch_param_dict, ms_param_dict, 'embeddings.token_type_embeddings.weight', ms_key)
-#             elif ms_key_tmp[1] == "full_position_embedding":
-#                 count += 1
-#                 update_torch_to_ms(torch_param_dict, ms_param_dict, 'embeddings.position_embeddings.weight',
-#                                    ms_key)
-#             elif ms_key_tmp[1] == "layernorm":
-#                 if ms_key_tmp[2] == "gamma":
-#                     count += 1
-#                     update_torch_to_ms(torch_param_dict, ms_param_dict, 'embeddings.LayerNorm.weight',
-#                                        ms_key)
-#                 else:
-#                     count += 1
-#                     update_torch_to_ms(torch_param_dict, ms_param_dict, 'embeddings.LayerNorm.bias',
-#                                        ms_key)
-#         elif ms_key_tmp[0] == "bert_encoder":
-#             if ms_key_tmp[3] == 'attention':
-#                 par = ms_key_tmp[4].split('_')[0]
-#                 count += 1
-#                 update_torch_to_ms(torch_param_dict, ms_param_dict, 'encoder.layer.' + ms_key_tmp[2] + '.' + ms_key_tmp[3] + '.'
-#                                    + 'self.' + par + '.' + ms_key_tmp[5],
-#                                    ms_key)
-#             elif ms_key_tmp[3] == 'attention_output':
-#                 if ms_key_tmp[4] == 'dense':
-#                     print(7)
-#                     count += 1
-#                     update_torch_to_ms(torch_param_dict, ms_param_dict,
-#                                        'encoder.layer.' + ms_key_tmp[2] + '.attention.output.' + ms_key_tmp[4] + '.' + ms_key_tmp[5],
-#                                        ms_key)
-#
-#                 elif ms_key_tmp[4] == 'layernorm':
-#                     if ms_key_tmp[5] == 'gamma':
-#                         print(8)
-#                         count += 1
-#                         update_torch_to_ms(torch_param_dict, ms_param_dict,
-#                                            'encoder.layer.' + ms_key_tmp[2] + '.attention.output.LayerNorm.weight',
-#                                            ms_key)
-#                     else:
-#                         count += 1
-#                         update_torch_to_ms(torch_param_dict, ms_param_dict,
-#                                            'encoder.layer.' + ms_key_tmp[2] + '.attention.output.LayerNorm.bias',
-#                                            ms_key)
-#             elif ms_key_tmp[3] == 'intermediate':
-#                 count += 1
-#                 update_torch_to_ms(torch_param_dict, ms_param_dict,
-#                                    'encoder.layer.' + ms_key_tmp[2] + '.intermediate.dense.' + ms_key_tmp[4],
-#                                    ms_key)
-#             elif ms_key_tmp[3] == 'output':
-#                 if ms_key_tmp[4] == 'dense':
-#                     count += 1
-#                     update_torch_to_ms(torch_param_dict, ms_param_dict,
-#                                        'encoder.layer.' + ms_key_tmp[2] + '.output.dense.' + ms_key_tmp[5],
-#                                        ms_key)
-#
-#                 else:
-#                     if ms_key_tmp[5] == 'gamma':
-#                         count += 1
-#                         update_torch_to_ms(torch_param_dict, ms_param_dict,
-#                                            'encoder.layer.' + ms_key_tmp[2] + '.output.LayerNorm.weight',
-#                                            ms_key)
-#
-#                     else:
-#                         count += 1
-#                         update_torch_to_ms(torch_param_dict, ms_param_dict,
-#                                            'encoder.layer.' + ms_key_tmp[2] + '.output.LayerNorm.bias',
-#                                            ms_key)
-#
-#         if ms_key_tmp[0] == 'dense':
-#             if ms_key_tmp[1] == 'weight':
-#                 count += 1
-#                 update_torch_to_ms(torch_param_dict, ms_param_dict,
-#                                    'pooler.dense.weight',
-#                                    ms_key)
-#             else:
-#                 count += 1
-#                 update_torch_to_ms(torch_param_dict, ms_param_dict,
-#                                    'pooler.dense.bias',
-#                                    ms_key)
-#         else:
-#             count += 1
-#             update_torch_to_ms(torch_param_dict, ms_param_dict,
-#                                ms_key,
-#                                ms_key)
-#
-#     save_checkpoint(model, save_path)
-#     print("finish load")
 def generate_param_mapping_kuhn(m_net, tor_net, m_txt, t_txt, ms_ckpt):
     """
     save the parameter name and shape of mindspore and torch model in two txt file,
@@ -166,17 +60,25 @@ def generate_param_mapping_ms(m_net, t_net, m_txt: str, t_txt: str, ckpt_ms: str
     torch_param_dict = t_net.state_dict()
     ms_param_dict = m_net.parameters_dict()
     ddd = ms_param_dict['conv1.weight']
-    print("######################################## before")
-    print(ddd)
-    print(ddd.shape)
+    with open("torch_conv1_1.txt", "w") as f:
+        f.write(str(torch_param_dict['conv1.weight'].numpy()))
+    with open("prev_conv1.txt", "w") as f:
+        f.write(str(ddd.data.asnumpy()))
+    # print("######################################## before")
+    # print(ddd.data)
+    # print(ddd.shape)
+    # print("dds", ddd.data.asnumpy()[0][0], "sljfk")
     update_torch_to_ms(torch_param_dict, ms_param_dict, 'conv1.weight', 'conv1.weight')
     sss = ms_param_dict['conv1.weight']
-    print("######################################## after")
-    print(sss)
-    print(sss.shape)
+    with open("after_conv1.txt", "w") as f:
+        f.write(str(sss.data.asnumpy()))
+    # print("######################################## after")
+    # print(sss.data.asnumpy())
+    # print(sss.shape)
+    # print("dsdfsad", sss.data.asnumpy()[0][0], "slkfs")
     # compare ddd with sss
-    print("closeness", np.sum(np.abs(ddd.asnumpy() - sss.asnumpy())))
-    print("all_close", np.allclose(ddd.asnumpy(), sss.asnumpy()))
+    # print("closeness", np.sum(np.abs(ddd.data.asnumpy() - sss.data.asnumpy())))
+    # print("all_close", np.allclose(ddd.data.asnumpy(), sss.data.asnumpy()))
 
     save_mindspore_net_txt(m_net, m_txt)
     save_torch_net_txt(t_net, t_txt)
@@ -185,8 +87,10 @@ def generate_param_mapping_ms(m_net, t_net, m_txt: str, t_txt: str, ckpt_ms: str
     for ms_key in ms_param_dict.keys():
         ms_key_tmp = ms_key.split('.')
         str_join = '.'
-        if ms_key_tmp[0].strip() == 'down_sample':
-            ms_key_tmp[0] = 'downsample'
+
+        # if ms_key_tmp[0] == 'downsample':  # todo only for testing block
+        #     ms_key_tmp.insert(0, 'layer1.0')
+        #     print("##############################  only for testing block,please delete it when you see it.")
 
         if ms_key_tmp[-1] == "moving_mean":
             ms_key_tmp[-1] = "running_mean"
@@ -208,13 +112,15 @@ def generate_param_mapping_ms(m_net, t_net, m_txt: str, t_txt: str, ckpt_ms: str
             torch_key = str_join.join(ms_key_tmp)
             update_torch_to_ms(torch_param_dict, ms_param_dict, torch_key, ms_key)
         # load param from ms_param_dict to ms_net
-    load_param_into_net(net=m_net, parameter_dict=ms_param_dict)
-    print("######################################## after loading param")
+    not_loading_list = load_param_into_net(net=m_net, parameter_dict=ms_param_dict)
+    # print("not_loading_list", not_loading_list)
+    # print("######################################## after loading param")
     kkk = ms_param_dict['conv1.weight']
-    print(kkk)
-    print(kkk.shape)
-    print("closeness", np.sum(np.abs(ddd.asnumpy() - kkk.asnumpy())))
-    print("all_close", np.allclose(ddd.asnumpy(), kkk.asnumpy()))
+    # print(kkk)
+    # print(kkk.shape)
+    # print(kkk.data.asnumpy()[0][0])
+    # print("closeness", np.sum(np.abs(ddd.asnumpy() - kkk.asnumpy())))
+    # print("all_close", np.allclose(ddd.asnumpy(), kkk.asnumpy()))
 
     save_checkpoint(m_net, ckpt_ms)
 

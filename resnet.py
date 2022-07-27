@@ -188,7 +188,7 @@ class Bottleneck(nn.Cell):
         self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, has_bias=False)
         self.bn3 = nn.BatchNorm2d(planes * 4)
         self.relu = nn.ReLU()  # kuhn edited  there is no inplace parameter in ReLU
-        self.down_sample = downsample
+        self.downsample = downsample
 
         # if stride != 1 or in_channel != out_channel:
         #     self.down_sample = True
@@ -198,58 +198,65 @@ class Bottleneck(nn.Cell):
         #     self.down_sample_layer = nn.SequentialCell([_conv1x1(in_channel, out_channel, stride,
         #                                                          ), _bn(out_channel)])
 
-    # def construct(self, x):
-    #     residual = x
-    #
-    #     out = self.conv1(x)
-    #     out = self.bn1(out)
-    #     out = self.relu(out)
-    #
-    #     out = self.conv2(out)
-    #     out = self.bn2(out)
-    #     out = self.relu(out)
-    #
-    #     out = self.conv3(out)
-    #     out = self.bn3(out)
-    #
-    #     if self.down_sample is not None:
-    #         residual = self.down_sample(x)
-    #
-    #     out = out + residual
-    #     out = self.relu(out)
-    #
-    #     return out
-
+    ##########nhuk#################################### the original one
     def construct(self, x):
-        intermediate_features = {}
         residual = x
-        print("residual shape:", residual.shape)
 
         out = self.conv1(x)
-        intermediate_features['conv1'] = out
         out = self.bn1(out)
-        intermediate_features['bn1'] = out
         out = self.relu(out)
-        intermediate_features['relu1'] = out
 
         out = self.conv2(out)
-        intermediate_features['conv2'] = out
         out = self.bn2(out)
-        intermediate_features['bn2'] = out
         out = self.relu(out)
 
         out = self.conv3(out)
         out = self.bn3(out)
-        print("out shape: ", out.shape)
 
         if self.downsample is not None:
             residual = self.downsample(x)
-        print("residual shape: ", residual.shape)
 
-        out += residual
+        out = out + residual
         out = self.relu(out)
 
-        return out, intermediate_features
+        return out
+    ##########nhuk####################################
+
+    # ##########nhuk#################################### build for testing block
+    # def construct(self, x):
+    #     intermediate_features = {}
+    #     residual = x
+    #     print("residual shape:", residual.shape)
+    #
+    #     out = self.conv1(x)
+    #     intermediate_features['conv1'] = out
+    #     out = self.bn1(out)
+    #     intermediate_features['bn1'] = out
+    #     out = self.relu(out)
+    #     intermediate_features['relu1'] = out
+    #
+    #     out = self.conv2(out)
+    #     intermediate_features['conv2'] = out
+    #     out = self.bn2(out)
+    #     intermediate_features['bn2'] = out
+    #     out = self.relu(out)
+    #
+    #     out = self.conv3(out)
+    #     intermediate_features['conv3'] = out
+    #     out = self.bn3(out)
+    #     intermediate_features['bn3'] = out
+    #     print("out shape: ", out.shape)
+    #
+    #     if self.downsample is not None:
+    #         residual = self.downsample(x)
+    #         print("residual shape:", residual.shape)
+    #     print("residual shape: ", residual.shape)
+    #
+    #     out += residual
+    #     out = self.relu(out)
+    #
+    #     return out, intermediate_features
+    # ##########nhuk####################################
 
 
 class ResNet(nn.Cell):
@@ -300,9 +307,7 @@ class ResNet(nn.Cell):
         self.classifier = nn.Dense(self.num_features, num_classes)
 
     def _make_layer(self, block, planes, blocks, stride=1):
-
         downsample = None
-
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.SequentialCell([
                 nn.Conv2d(self.inplanes, planes * block.expansion, kernel_size=1, stride=stride, has_bias=False),
@@ -386,21 +391,16 @@ class tBottleneck(tnn.Module):
         self.downsample = downsample
         self.stride = stride
 
+    ##########nhuk#################################### original one
     def forward(self, x):
-        intermediate_features = {}
         residual = x
 
         out = self.conv1(x)
-        intermediate_features['conv1'] = out
         out = self.bn1(out)
-        intermediate_features['bn1'] = out
         out = self.relu(out)
-        intermediate_features['relu1'] = out
 
         out = self.conv2(out)
-        intermediate_features['conv2'] = out
         out = self.bn2(out)
-        intermediate_features['bn2'] = out
         out = self.relu(out)
 
         out = self.conv3(out)
@@ -412,22 +412,31 @@ class tBottleneck(tnn.Module):
         out += residual
         out = self.relu(out)
 
-        return out, intermediate_features
+        return out
+    ##########nhuk####################################
 
+    # ##########nhuk#################################### for testing block
     # def forward(self, x):
+    #     intermediate_features = {}
     #     residual = x
     #
     #     out = self.conv1(x)
+    #     intermediate_features['conv1'] = out
     #     out = self.bn1(out)
+    #     intermediate_features['bn1'] = out
     #     out = self.relu(out)
-    #
+    #     intermediate_features['relu1'] = out
     #
     #     out = self.conv2(out)
+    #     intermediate_features['conv2'] = out
     #     out = self.bn2(out)
+    #     intermediate_features['bn2'] = out
     #     out = self.relu(out)
     #
     #     out = self.conv3(out)
+    #     intermediate_features['conv3'] = out
     #     out = self.bn3(out)
+    #     intermediate_features['bn3'] = out
     #
     #     if self.downsample is not None:
     #         residual = self.downsample(x)
@@ -435,7 +444,8 @@ class tBottleneck(tnn.Module):
     #     out += residual
     #     out = self.relu(out)
     #
-    #     return out
+    #     return out, intermediate_features
+    # ##########nhuk####################################
 
 
 def weights_converter():
@@ -519,21 +529,27 @@ def load_torch_model():
     return net
 
 
-def tensor_diff(m_tensor_out, t_tensor_out, comment=None):
+def tensor_diff(m_tensor_out, t_tensor_out, comment: str = None):
     if comment is not None:
         print("########################################" + comment)
     else:
         print("########################################")
-    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy()))
-    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-4))
-    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-3))
-    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-2))
-    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-1))
+    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy()), sep=' ')
+    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-4), sep=' ')
+    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-3), sep=' ')
+    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-2), sep=' ')
+    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-1), sep=' ')
+    with open("m_tensor_%s.txt" % (comment), "w") as f:
+        f.write(str(m_tensor_out.asnumpy()))
+    with open("t_tensor_%s.txt" % (comment), "w") as f:
+        f.write(str(t_tensor_out.detach().numpy()))
 
 
 def torchVSms():
     m_net = load_ms_model()
     t_net = load_torch_model()
+    m_net.set_train(False)
+    t_net.eval()
 
     test_input = np.random.randn(6, 3, 256, 128).astype(np.float32)
     m_tensor_in = Tensor(test_input)
@@ -568,27 +584,71 @@ def blockTest_torchVSms():
     m_downsample_proc = nn.SequentialCell([
         nn.Conv2d(64, 256, kernel_size=1, stride=1, has_bias=False),
         nn.BatchNorm2d(256)])
+    # tblock_net = t_downsample_proc
+    # mblock_net = m_downsample_proc
+
+    # tblock_net = tBottleneck(inplanes=64, planes=16, stride=1, downsample=t_downsample_proc)
+    # mblock_net = Bottleneck(inplanes=64, planes=16, stride=1, downsample=m_downsample_proc)
     tblock_net = tBottleneck(inplanes=64, planes=64, stride=1, downsample=t_downsample_proc)
     mblock_net = Bottleneck(inplanes=64, planes=64, stride=1, downsample=m_downsample_proc)
+    # mblock_net = ResNet(Bottleneck, [3, 4, 6, 3], config.class_num, train=False)
+    # tblock_net = load_torch_model()
+
+    mblock_net.set_train(False)
+    tblock_net.eval()
+
     ########################################
     m_txt = "bottleneck.txt"
     t_txt = "tbottleneck.txt"
     ms_ckpt = 'mbottleneck.ckpt'
-    test_input = np.random.randn(6, 64, 64, 32).astype(np.float32)
+    # test_input = np.random.randn(6, 3, 256, 128).astype(np.float32) # for test resnet as a whole
+    test_input = np.random.randn(6, 64, 64, 32).astype(np.float32)  # for test block
     ##########nhuk####################################
+    print(tblock_net)
     generate_param_mapping_ms(mblock_net, tblock_net, m_txt, t_txt, ms_ckpt)
     # gen_param_mapping(mblock_net, tblock_net, ms_ckpt)
 
-    # mblock_net = load_ms_model(mblock_net, ms_ckpt)
-    #
-    # m_tensor_in = Tensor(test_input)
-    # t_tensor_in = torch.from_numpy(test_input)
-    #
+    mblock_net = load_ms_model(mblock_net, ms_ckpt)
+    save_one_param_weights_numpy(mblock_net, tblock_net)
+
+    m_tensor_in = Tensor(test_input)
+    t_tensor_in = torch.from_numpy(test_input)
+
+    #########nhuk#################################### single output
+    t_tensor_out = tblock_net(t_tensor_in)
+    m_tensor_out = mblock_net(m_tensor_in)
+    #########nhuk####################################
+
+    # ##########nhuk#################################### multi output
     # t_tensor_out, t_intermediate = tblock_net(t_tensor_in)
     # m_tensor_out, m_intermediate = mblock_net(m_tensor_in)
     # for ind, key in enumerate(t_intermediate):
     #     tensor_diff(m_intermediate[ind], t_intermediate[key], key)
-    # tensor_diff(m_tensor_out, t_tensor_out, "final")
+    # ##########nhuk####################################
+
+    tensor_diff(m_tensor_out, t_tensor_out, "final")
+
+
+
+def save_one_param_weights_numpy(mblock_net, tblock_net):
+    with open("t_bn2.txt", "w") as f:
+        f.write("running mean\n")
+        f.write(str(tblock_net.state_dict()['bn2.running_mean'].numpy()))
+        f.write("running var\n")
+        f.write(str(tblock_net.state_dict()['bn2.running_var'].numpy()))
+        f.write("weight\n")
+        f.write(str(tblock_net.state_dict()['bn2.weight'].numpy()))
+        f.write("bias\n")
+        f.write(str(tblock_net.state_dict()['bn2.bias'].numpy()))
+    with open("m_bn2.txt", "w") as f:
+        f.write("moving mean\n")
+        f.write(str(mblock_net.parameters_dict()['bn2.moving_mean'].asnumpy()))
+        f.write("moving var\n")
+        f.write(str(mblock_net.parameters_dict()['bn2.moving_variance'].asnumpy()))
+        f.write("weight\n")
+        f.write(str(mblock_net.parameters_dict()['bn2.gamma'].asnumpy()))
+        f.write("bias\n")
+        f.write(str(mblock_net.parameters_dict()['bn2.beta'].asnumpy()))
 
 
 def save_param_txt():

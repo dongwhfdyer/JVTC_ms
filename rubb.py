@@ -6,26 +6,32 @@ import torch.nn as tnn
 import mindspore.nn as mnn
 from mindspore.ops import operations as P
 
-# ##############nhuk################################### test Max Pool2d
-# # pool of square window of size=3, stride=2
-# tm = tnn.MaxPool2d(3, stride=2, padding=1)
-# tinput = torch.randn(20, 17, 50, 31)
-# toutput = tm(tinput)
+# The following implements BatchNorm2d with MindSpore.
+import torch
+import mindspore.nn as nn
+from mindspore import Tensor
+
+net = nn.BatchNorm2d(num_features=2, momentum=0.8)
+x = Tensor(np.array([[[[1, 2], [1, 2]], [[3, 4], [3, 4]]]]).astype(np.float32))
+output = net(x)
+print(output)
+# Out:
+# [[[[0.999995   1.99999]
+#    [0.999995   1.99999]]
 #
-# # mm = mnn.MaxPool2d(kernel_size=3, stride=2,pad_mode="same") # same is not same
-# mm = mnn.MaxPool2d(kernel_size=3, stride=2, pad_mode="valid")
-# minput = P.StandardNormal()((20, 17, 50, 31))
-# moutput = mm(minput)
-# print(toutput.shape)
-# print("########################################")
-# print(moutput.shape)
-# ###############nhuk#################################
+#   [[2.999985   3.99998]
+#    [2.999985   3.99998]]]]
+
+
+# The following implements BatchNorm2d with torch.
+input_x = torch.tensor(np.array([[[[1, 2], [1, 2]], [[3, 4], [3, 4]]]]).astype(np.float32))
+m = torch.nn.BatchNorm2d(2, momentum=0.2)
+output = m(input_x)
+print(output)
+# Out:
+# tensor([[[[-1.0000,  1.0000],
+#           [-1.0000,  1.0000]],
 #
-##########nhuk#################################### test kaiming_normal_
-tensor_test = torch.randn(17, 50, 31)
-tensor1 = initializer(HeNormal(), tensor_test, mindspore.float32)
-tensor2 = initializer('he_normal', [1, 4, 3], mindspore.float32)
-print(tensor1)
-print("########################################")
-print(tensor2)
-##########nhuk####################################
+#          [[-1.0000,  1.0000],
+#           [-1.0000,  1.0000]]]], grad_fn=<NativeBatchNormBackward>)
+
