@@ -15,8 +15,9 @@
 """ResNet."""
 import math
 import re
+
+from ms_converter import generate_param_mapping_ms
 from t_resnet import ResNet as t_ResNet
-import pickle
 import torch
 import torch.nn as tnn
 
@@ -197,27 +198,58 @@ class Bottleneck(nn.Cell):
         #     self.down_sample_layer = nn.SequentialCell([_conv1x1(in_channel, out_channel, stride,
         #                                                          ), _bn(out_channel)])
 
+    # def construct(self, x):
+    #     residual = x
+    #
+    #     out = self.conv1(x)
+    #     out = self.bn1(out)
+    #     out = self.relu(out)
+    #
+    #     out = self.conv2(out)
+    #     out = self.bn2(out)
+    #     out = self.relu(out)
+    #
+    #     out = self.conv3(out)
+    #     out = self.bn3(out)
+    #
+    #     if self.down_sample is not None:
+    #         residual = self.down_sample(x)
+    #
+    #     out = out + residual
+    #     out = self.relu(out)
+    #
+    #     return out
+
     def construct(self, x):
+        intermediate_features = {}
         residual = x
+        print("residual shape:", residual.shape)
 
         out = self.conv1(x)
+        intermediate_features['conv1'] = out
         out = self.bn1(out)
+        intermediate_features['bn1'] = out
         out = self.relu(out)
+        intermediate_features['relu1'] = out
 
         out = self.conv2(out)
+        intermediate_features['conv2'] = out
         out = self.bn2(out)
+        intermediate_features['bn2'] = out
         out = self.relu(out)
 
         out = self.conv3(out)
         out = self.bn3(out)
+        print("out shape: ", out.shape)
 
-        if self.down_sample is not None:
-            residual = self.down_sample(x)
+        if self.downsample is not None:
+            residual = self.downsample(x)
+        print("residual shape: ", residual.shape)
 
-        out = out + residual
+        out += residual
         out = self.relu(out)
 
-        return out
+        return out, intermediate_features
 
 
 class ResNet(nn.Cell):
@@ -355,14 +387,20 @@ class tBottleneck(tnn.Module):
         self.stride = stride
 
     def forward(self, x):
+        intermediate_features = {}
         residual = x
 
         out = self.conv1(x)
+        intermediate_features['conv1'] = out
         out = self.bn1(out)
+        intermediate_features['bn1'] = out
         out = self.relu(out)
+        intermediate_features['relu1'] = out
 
         out = self.conv2(out)
+        intermediate_features['conv2'] = out
         out = self.bn2(out)
+        intermediate_features['bn2'] = out
         out = self.relu(out)
 
         out = self.conv3(out)
@@ -374,7 +412,30 @@ class tBottleneck(tnn.Module):
         out += residual
         out = self.relu(out)
 
-        return out
+        return out, intermediate_features
+
+    # def forward(self, x):
+    #     residual = x
+    #
+    #     out = self.conv1(x)
+    #     out = self.bn1(out)
+    #     out = self.relu(out)
+    #
+    #
+    #     out = self.conv2(out)
+    #     out = self.bn2(out)
+    #     out = self.relu(out)
+    #
+    #     out = self.conv3(out)
+    #     out = self.bn3(out)
+    #
+    #     if self.downsample is not None:
+    #         residual = self.downsample(x)
+    #
+    #     out += residual
+    #     out = self.relu(out)
+    #
+    #     return out
 
 
 def weights_converter():
@@ -458,6 +519,18 @@ def load_torch_model():
     return net
 
 
+def tensor_diff(m_tensor_out, t_tensor_out, comment=None):
+    if comment is not None:
+        print("########################################" + comment)
+    else:
+        print("########################################")
+    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy()))
+    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-4))
+    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-3))
+    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-2))
+    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-1))
+
+
 def torchVSms():
     m_net = load_ms_model()
     t_net = load_torch_model()
@@ -487,41 +560,6 @@ def torchVSms():
         f.write(str(t_tensor_out.detach().numpy()))
 
 
-def tensor_diff(m_tensor_out, t_tensor_out):
-    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy()))
-    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-4))
-    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-3))
-    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-2))
-    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-1))
-
-
-def generate_param_mapping(m_net, tor_net, m_txt, t_txt, ms_ckpt):
-    """
-    save the parameter name and shape of mindspore and torch model in two txt file,
-    and generate the ckpt file for mindspore model.
-    """
-    save_mindspore_net_txt(m_net, m_txt)
-    save_torch_net_txt(tor_net, t_txt)
-    par_dict = tor_net.state_dict()
-
-    params_list = []
-    f1 = open(m_txt, "r")
-    f2 = open(t_txt, "r")
-
-    lines_f1 = f1.readlines()
-    lines_f2 = f2.readlines()
-    assert lines_f1 != lines_f2, 'the two txt file is not equal,len(lines_f1)=%d,len(lines_f2)%d' % (len(lines_f1), len(lines_f2))
-    for i in range(len(lines_f1)):
-        param_dict = {}
-        param_dict["name"] = lines_f1[i].strip()
-        param_dict['data'] = Tensor(par_dict[lines_f2[i].strip()].numpy())
-        params_list.append(param_dict)
-
-    save_checkpoint(params_list, ms_ckpt)
-    f1.close()
-    f2.close()
-
-
 def blockTest_torchVSms():
     ##########nhuk#################################### param setting
     t_downsample_proc = tnn.Sequential(
@@ -532,44 +570,25 @@ def blockTest_torchVSms():
         nn.BatchNorm2d(256)])
     tblock_net = tBottleneck(inplanes=64, planes=64, stride=1, downsample=t_downsample_proc)
     mblock_net = Bottleneck(inplanes=64, planes=64, stride=1, downsample=m_downsample_proc)
+    ########################################
     m_txt = "bottleneck.txt"
     t_txt = "tbottleneck.txt"
     ms_ckpt = 'mbottleneck.ckpt'
     test_input = np.random.randn(6, 64, 64, 32).astype(np.float32)
     ##########nhuk####################################
-    generate_param_mapping(mblock_net, tblock_net, m_txt, t_txt, ms_ckpt)
+    generate_param_mapping_ms(mblock_net, tblock_net, m_txt, t_txt, ms_ckpt)
+    # gen_param_mapping(mblock_net, tblock_net, ms_ckpt)
 
-    mblock_net = load_ms_model(mblock_net, ms_ckpt)
-
-    m_tensor_in = Tensor(test_input)
-    t_tensor_in = torch.from_numpy(test_input)
-
-    t_tensor_out = tblock_net(t_tensor_in)
-    m_tensor_out = mblock_net(m_tensor_in)
-    tensor_diff(m_tensor_out, t_tensor_out)
-
-
-def save_torch_net_txt(net, txt_path, include_shape=False, ):
-    with open(txt_path, "w") as f:
-        for key, value in net.state_dict().items():
-            if "num_batches_tracked" in key:
-                continue
-            if not include_shape:
-                try:
-                    f.write(str(key).strip() + "\n")
-                except Exception as e:
-                    print(e)
-            else:
-                f.write(str(key).strip() + " " + str(value.shape) + "\n")
-
-
-def save_mindspore_net_txt(net, txt_path, include_shape=False):
-    with open(txt_path, "w") as f:
-        for item in net.get_parameters():
-            if not include_shape:
-                f.write(str(item.name).strip() + "\n")
-            else:
-                f.write(str(item.name).strip() + ' ' + str(item.shape) + '\n')
+    # mblock_net = load_ms_model(mblock_net, ms_ckpt)
+    #
+    # m_tensor_in = Tensor(test_input)
+    # t_tensor_in = torch.from_numpy(test_input)
+    #
+    # t_tensor_out, t_intermediate = tblock_net(t_tensor_in)
+    # m_tensor_out, m_intermediate = mblock_net(m_tensor_in)
+    # for ind, key in enumerate(t_intermediate):
+    #     tensor_diff(m_intermediate[ind], t_intermediate[key], key)
+    # tensor_diff(m_tensor_out, t_tensor_out, "final")
 
 
 def save_param_txt():
