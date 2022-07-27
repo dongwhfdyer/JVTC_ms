@@ -103,14 +103,21 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
+        intermediate_features = {}
         x = self.conv1(x)
+        intermediate_features['conv1'] = x
         x = self.bn1(x)
+        intermediate_features['bn1'] = x
         x = self.relu(x)
+        intermediate_features['relu1'] = x
         x = self.maxpool(x)
 
         x = self.layer1(x)
+        intermediate_features['layer1'] = x
         x = self.layer2(x)
+        intermediate_features['layer2'] = x
         x = self.layer3(x)
+        intermediate_features['layer3'] = x
         x = self.layer4(x)
 
         x = F.avg_pool2d(x, x.size()[2:])
@@ -123,7 +130,7 @@ class ResNet(nn.Module):
         x = F.relu(fea)
         x = self.classifier(x)
 
-        return x, fea_norm, fea
+        return x, intermediate_features
 
 
 def resnet50(pretrained=None, num_classes=1000, train=True):
