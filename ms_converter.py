@@ -1,7 +1,10 @@
+from typing import Union
+
 import numpy as np
 import torch
 from mindspore import save_checkpoint, Parameter, Tensor, load_param_into_net
 from mindspore.common.initializer import initializer
+import mindspore
 
 
 def generate_param_mapping_kuhn(m_net, tor_net, m_txt, t_txt, ms_ckpt):
@@ -54,43 +57,30 @@ def save_mindspore_net_txt(net, txt_path, include_shape=False):
                 f.write(str(item.name).strip() + ' ' + str(item.shape) + '\n')
 
 
+def save_Tensor_as_txt(one_tensor: Union[torch.Tensor, mindspore.Tensor], txt_path):
+    """Save torch tensor to txt file."""
+    if isinstance(one_tensor, torch.Tensor):
+        np_array = one_tensor.numpy()
+    elif isinstance(one_tensor, mindspore.Tensor):
+        np_array = one_tensor.data.asnumpy()
+    else:
+        raise TypeError("one_tensor must be a torch.Tensor or mindspore.Tensor.")
+    with open(txt_path, "w") as f:
+        f.write(str(np_array))
+
+
 def generate_param_mapping_ms(m_net, t_net, m_txt: str, t_txt: str, ckpt_ms: str):
     """Updates mindspore batchnorm param's data from torch batchnorm param's data."""
     ##########nhuk#################################### param save to txt
     torch_param_dict = t_net.state_dict()
     ms_param_dict = m_net.parameters_dict()
-    ddd = ms_param_dict['conv1.weight']
-    with open("torch_conv1_1.txt", "w") as f:
-        f.write(str(torch_param_dict['conv1.weight'].numpy()))
-    with open("prev_conv1.txt", "w") as f:
-        f.write(str(ddd.data.asnumpy()))
-    # print("######################################## before")
-    # print(ddd.data)
-    # print(ddd.shape)
-    # print("dds", ddd.data.asnumpy()[0][0], "sljfk")
-    update_torch_to_ms(torch_param_dict, ms_param_dict, 'conv1.weight', 'conv1.weight')
-    sss = ms_param_dict['conv1.weight']
-    with open("after_conv1.txt", "w") as f:
-        f.write(str(sss.data.asnumpy()))
-    # print("######################################## after")
-    # print(sss.data.asnumpy())
-    # print(sss.shape)
-    # print("dsdfsad", sss.data.asnumpy()[0][0], "slkfs")
-    # compare ddd with sss
-    # print("closeness", np.sum(np.abs(ddd.data.asnumpy() - sss.data.asnumpy())))
-    # print("all_close", np.allclose(ddd.data.asnumpy(), sss.data.asnumpy()))
-
-    save_mindspore_net_txt(m_net, m_txt)
-    save_torch_net_txt(t_net, t_txt)
+    save_mindspore_net_txt(m_net, m_txt,include_shape=True)
+    save_torch_net_txt(t_net, t_txt,include_shape=True)
     ##########nhuk####################################
 
     for ms_key in ms_param_dict.keys():
         ms_key_tmp = ms_key.split('.')
         str_join = '.'
-
-        # if ms_key_tmp[0] == 'downsample':  # todo only for testing block
-        #     ms_key_tmp.insert(0, 'layer1.0')
-        #     print("##############################  only for testing block,please delete it when you see it.")
 
         if ms_key_tmp[-1] == "moving_mean":
             ms_key_tmp[-1] = "running_mean"
@@ -113,14 +103,9 @@ def generate_param_mapping_ms(m_net, t_net, m_txt: str, t_txt: str, ckpt_ms: str
             update_torch_to_ms(torch_param_dict, ms_param_dict, torch_key, ms_key)
         # load param from ms_param_dict to ms_net
     not_loading_list = load_param_into_net(net=m_net, parameter_dict=ms_param_dict)
-    # print("not_loading_list", not_loading_list)
-    # print("######################################## after loading param")
-    kkk = ms_param_dict['conv1.weight']
-    # print(kkk)
-    # print(kkk.shape)
-    # print(kkk.data.asnumpy()[0][0])
-    # print("closeness", np.sum(np.abs(ddd.asnumpy() - kkk.asnumpy())))
-    # print("all_close", np.allclose(ddd.asnumpy(), kkk.asnumpy()))
+    print("not_loading_list", not_loading_list)
+    print("######################################## after loading param")
+    print("checkpoint_path", ckpt_ms)
 
     save_checkpoint(m_net, ckpt_ms)
 

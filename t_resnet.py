@@ -6,9 +6,6 @@ from torch.nn import init
 from torch.nn import functional as F
 
 
-# from mindconverter import pytorch2mindspore
-
-
 class Bottleneck(nn.Module):
     expansion = 4
 
@@ -48,6 +45,43 @@ class Bottleneck(nn.Module):
         return out
 
 
+class tlayer1(nn.Module):
+    def __init__(self, block, planes, blocks=3, stride=1):
+        super(tlayer1, self).__init__()
+        self.inplanes = 64
+        self.downsample = nn.Sequential(
+            nn.Conv2d(self.inplanes, planes * block.expansion, kernel_size=1, stride=stride, bias=False),
+            nn.BatchNorm2d(planes * block.expansion))
+        self.block1 = block(self.inplanes, planes, stride, downsample=self.downsample)
+        self.block2 = block(self.inplanes * 4, planes)
+        self.block3 = block(self.inplanes * 4, planes)
+
+    # ##########nhuk#################################### testing layers
+    # def forward(self, x):
+    #     intermediate_features = {}
+    #     x = self.block1(x)
+    #     intermediate_features['block1'] = x
+    #     x = self.block2(x)
+    #     intermediate_features['block2'] = x
+    #     out = self.block3(x)
+    #     return out, intermediate_features
+    # ##########nhuk####################################
+
+    ##########nhuk#################################### original one
+    def forward(self, x):
+        intermediate_features = {}
+        x = self.block1(x)
+        print("block1: ", x.shape)
+        intermediate_features['block1'] = x
+        x = self.block2(x)
+        print("block2: ", x.shape)
+        intermediate_features['block2'] = x
+        out = self.block3(x)
+        print("block3: ", out.shape)
+        return out
+    ##########nhuk####################################
+
+
 class ResNet(nn.Module):
     # layers = [3, 4, 6, 3]
     def __init__(self, block, layers, num_classes=1000, train=True):
@@ -59,6 +93,7 @@ class ResNet(nn.Module):
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        # self.layer1 = tlayer1(block,64)  # todo:delete it
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
@@ -104,13 +139,19 @@ class ResNet(nn.Module):
 
     def forward(self, x):
         intermediate_features = {}
+        print("######################################## t_resnet.construct")
+        print("before conv1:", x.shape)
         x = self.conv1(x)
+        print("t_resnet_conv1:", x.shape)
         intermediate_features['conv1'] = x
         x = self.bn1(x)
+        print("t_resnet_bn1:", x.shape)
         intermediate_features['bn1'] = x
         x = self.relu(x)
+        print("t_resnet_relu1:", x.shape)
         intermediate_features['relu1'] = x
         x = self.maxpool(x)
+        print("t_resnet_maxpool1:", x.shape)
 
         x = self.layer1(x)
         intermediate_features['layer1'] = x
@@ -121,11 +162,14 @@ class ResNet(nn.Module):
         x = self.layer4(x)
 
         x = F.avg_pool2d(x, x.size()[2:])
+        intermediate_features['avgpool'] = x
         x = x.view(x.size(0), -1)
 
         x = self.feat(x)
         fea = self.feat_bn(x)
+        intermediate_features['feat'] = fea
         fea_norm = F.normalize(fea)
+        intermediate_features['feat_norm'] = fea_norm
 
         x = F.relu(fea)
         x = self.classifier(x)

@@ -17,7 +17,7 @@ import math
 import re
 
 from ms_converter import generate_param_mapping_ms
-from t_resnet import ResNet as t_ResNet
+from t_resnet import ResNet as t_ResNet, tlayer1
 import torch
 import torch.nn as tnn
 
@@ -176,17 +176,24 @@ class Bottleneck(nn.Cell):
 
     ##########nhuk#################################### the original one
     def construct(self, x):
+        print("######################################## ms_Bottleneck.construct")
         residual = x
 
+        print("before conv1", x.shape)
         out = self.conv1(x)
+        print("ms_bottleneck conv1", out.shape)
         out = self.bn1(out)
+        print("ms_bottleneck bn1", out.shape)
         out = self.relu(out)
+        print("ms_bottleneck relu1", out.shape)
 
         out = self.conv2(out)
+        print("ms_bottleneck conv2", out.shape)
         out = self.bn2(out)
         out = self.relu(out)
 
         out = self.conv3(out)
+        print("ms_bottleneck conv3", out.shape)
         out = self.bn3(out)
 
         if self.downsample is not None:
@@ -197,106 +204,6 @@ class Bottleneck(nn.Cell):
 
         return out
     ##########nhuk####################################
-
-
-class ResNet(nn.Cell):
-    """
-    ResNet architecture.
-
-    Args:
-        block (Cell): Block for network.
-        layers (list): Numbers of block in different layers.
-        in_channels (list): Input channel in each layer.
-        out_channels (list): Output channel in each layer.
-        strides (list):  Stride size in each layer.
-        num_classes (int): The number of classes that the training images are belonging to.
-        use_se (bool): Enable SE-ResNet50 net. Default: False.
-        se_block(bool): Use se block in SE-ResNet50 net in layer 3 and layer 4. Default: False.
-        res_base (bool): Enable parameter setting of resnet18. Default: False.
-
-    Returns:
-        Tensor, output tensor.
-
-    Examples:
-        >>> ResNet(Bottleneck,
-        >>>        [3, 4, 6, 3],
-        >>>        [64, 256, 512, 1024],
-        >>>        [256, 512, 1024, 2048],
-        >>>        [1, 2, 2, 2],
-        >>>        10)
-    """
-
-    def __init__(self, block, layers, num_classes, train=True):
-        self.inplanes = 64
-        super(ResNet, self).__init__()
-
-        self.istrain = train
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding=3, has_bias=False, pad_mode="pad")
-        self.bn1 = nn.BatchNorm2d(64)
-        self.relu = nn.ReLU()
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, pad_mode="valid")  # kuhn edited. THrought experience, the torch version's padding mode seems to be "valid". I am not sure.
-        self.layer1 = self._make_layer(block, 64, layers[0])
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=1)
-        self.avgpool2d = nn.AvgPool2d((16, 8))  # kuhn edited. might be wrong.
-
-        self.num_features = 512
-        self.feat = nn.Dense(512 * block.expansion, self.num_features)  # kuhn edited. I assueme that the weights would be replaced by ckpts,so I didn't set any speical init weights.
-        self.feat_bn = nn.BatchNorm1d(self.num_features)
-        self.classifier = nn.Dense(self.num_features, num_classes)
-
-    def _make_layer(self, block, planes, blocks, stride=1):
-        downsample = None
-        if stride != 1 or self.inplanes != planes * block.expansion:
-            downsample = nn.SequentialCell([
-                nn.Conv2d(self.inplanes, planes * block.expansion, kernel_size=1, stride=stride, has_bias=False),
-                nn.BatchNorm2d(planes * block.expansion)])
-        layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample))
-        self.inplanes = planes * block.expansion
-        for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes))
-        return nn.SequentialCell(*layers)
-
-        # resnet_block = block(in_channel, out_channel, stride=stride, )
-        # layers.append(resnet_block)
-        # for _ in range(1, layer_num):
-        #     resnet_block = block(out_channel, out_channel, stride=1, )
-        #     layers.append(resnet_block)
-        # return nn.SequentialCell(layers)
-
-    def construct(self, x):
-        # kuhn edited. The data type other than cell or Primitive is not allowed in Cell.construct.
-        intermediate_features = {}
-        x = self.conv1(x)
-        intermediate_features['conv1'] = x
-        x = self.bn1(x)
-        intermediate_features['bn1'] = x
-        x = self.relu(x)
-        intermediate_features['relu1'] = x
-        x = self.maxpool(x)
-
-        x = self.layer1(x)
-        intermediate_features['layer1'] = x
-        x = self.layer2(x)
-        intermediate_features['layer2'] = x
-        x = self.layer3(x)
-        intermediate_features['layer3'] = x
-        x = self.layer4(x)
-
-        x = self.avgpool2d(x)  # kuhn edited. Might cause error.
-        # x = self.avgpool2d(x, x.shape[2:])
-        x = x.view(x.shape[0], -1)
-
-        x = self.feat(x)
-        fea = self.feat_bn(x)
-        fea_norm = P.L2Normalize()(fea)
-
-        x = P.ReLU()(fea)
-        x = self.classifier(x)
-        return x, intermediate_features
-        # return x, intermediate_features0, intermediate_features1, intermediate_features2, intermediate_features3, intermediate_features4, intermediate_features5
 
 
 class tBottleneck(tnn.Module):
@@ -338,6 +245,189 @@ class tBottleneck(tnn.Module):
 
         return out
     ##########nhuk####################################
+
+
+class layer1(nn.Cell):
+    def __init__(self, block, planes, blocks=3, stride=1):
+        super(layer1, self).__init__()
+        self.inplanes = 64
+        self.downsample = nn.SequentialCell([
+            nn.Conv2d(self.inplanes, planes * block.expansion, kernel_size=1, stride=stride, has_bias=False),
+            nn.BatchNorm2d(planes * block.expansion)])
+        self.block1 = block(self.inplanes, planes, stride, downsample=self.downsample)
+        self.block2 = block(self.inplanes * 4, planes)
+        self.block3 = block(self.inplanes * 4, planes)
+
+    # ##########nhuk#################################### only for testing layer1
+    # def construct(self, x):
+    #     intermediate_features = {}
+    #     x = self.block1(x)
+    #     intermediate_features['block1'] = x
+    #     x = self.block2(x)
+    #     intermediate_features['block2'] = x
+    #     out = self.block3(x)
+    #     return out, intermediate_features
+    # ##########nhuk####################################
+
+    ##########nhuk####################################
+    def construct(self, x):
+        print("######################################## layer1.construct")
+        print("before block1", x.shape)
+        intermediate_features = {}
+        x = self.block1(x)
+        print("block1:", x.shape)
+        intermediate_features['block1'] = x
+        x = self.block2(x)
+        print("block2:", x.shape)
+        intermediate_features['block2'] = x
+        out = self.block3(x)
+        print("block3:", out.shape)
+        return out
+    ##########nhuk####################################
+
+
+class MaxPool2d(nn.Cell):
+    def __init__(self, kernel_size, stride=None, padding=0):
+        super().__init__()
+        if stride is None:
+            stride = kernel_size
+        self.max_pool = P.MaxPool(kernel_size, stride)
+        self.use_pad = padding != 0
+        if isinstance(padding, tuple):
+            assert len(padding) == 2
+            paddings = ((0, 0), (0, 0), (padding[0], padding[0]), (padding[1], padding[1]))
+        elif isinstance(padding, int):
+            paddings = ((0, 0),) * 2 + ((padding, padding),) * 2
+        else:
+            raise ValueError('padding should be a tuple include 2 numbers or a int number')
+        self.pad = P.Pad(paddings)
+
+    def construct(self, x):
+        if self.use_pad:
+            x = self.pad(x)
+        return self.max_pool(x)
+
+
+class ResNet(nn.Cell):
+    """
+    ResNet architecture.
+
+    Args:
+        block (Cell): Block for network.
+        layers (list): Numbers of block in different layers.
+        in_channels (list): Input channel in each layer.
+        out_channels (list): Output channel in each layer.
+        strides (list):  Stride size in each layer.
+        num_classes (int): The number of classes that the training images are belonging to.
+        use_se (bool): Enable SE-ResNet50 net. Default: False.
+        se_block(bool): Use se block in SE-ResNet50 net in layer 3 and layer 4. Default: False.
+        res_base (bool): Enable parameter setting of resnet18. Default: False.
+
+    Returns:
+        Tensor, output tensor.
+
+    Examples:
+        >>> ResNet(Bottleneck,
+        >>>        [3, 4, 6, 3],
+        >>>        [64, 256, 512, 1024],
+        >>>        [256, 512, 1024, 2048],
+        >>>        [1, 2, 2, 2],
+        >>>        10)
+    """
+
+    def __init__(self, block, layers, num_classes, train=True):
+        self.inplanes = 64
+        super(ResNet, self).__init__()
+
+        self.istrain = train
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding=3, has_bias=False, pad_mode="pad")
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU()
+        # self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, pad_mode="valid")  # kuhn edited. THrought experience, the torch version's padding mode seems to be "valid". I am not sure.
+        self.maxpool = MaxPool2d(kernel_size=3, stride=2, padding=1)  # kuhn edited. THrought experience, the torch version's padding mode seems to be "valid". I am not sure.
+        # self.layer1 = layer1(block, 64)  # todo: delete it
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=1)
+        self.avgpool2d = nn.AvgPool2d((16, 8))  # kuhn edited. might be wrong.
+
+        self.num_features = 512
+        self.feat = nn.Dense(512 * block.expansion, self.num_features)  # kuhn edited. I assueme that the weights would be replaced by ckpts,so I didn't set any speical init weights.
+        self.feat_bn = nn.BatchNorm1d(self.num_features)
+        self.classifier = nn.Dense(self.num_features, num_classes)
+
+    def _make_layer(self, block, planes, blocks, stride=1):  # layer1: planes: 64, blocks: 3, stride: 1
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:  # layer1: self.inplanes: 64, planes: 64, block.expansion: 4
+            downsample = nn.SequentialCell([
+                nn.Conv2d(self.inplanes, planes * block.expansion, kernel_size=1, stride=stride, has_bias=False),
+                nn.BatchNorm2d(planes * block.expansion)])
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+        return nn.SequentialCell(*layers)
+
+        # resnet_block = block(in_channel, out_channel, stride=stride, )
+        # layers.append(resnet_block)
+        # for _ in range(1, layer_num):
+        #     resnet_block = block(out_channel, out_channel, stride=1, )
+        #     layers.append(resnet_block)
+        # return nn.SequentialCell(layers)
+
+    # def _make_layer2(self, block, planes, blocks, stride=1):
+    #     downsample = nn.SequentialCell([
+    #         nn.Conv2d(self.inplanes, planes * block.expansion, kernel_size=1, stride=stride, has_bias=False),
+    #         nn.BatchNorm2d(planes * block.expansion)])
+    #     block1 = block(self.inplanes, planes, stride, downsample)
+    #     for i in range(1, blocks):
+    #         block(self.inplanes, planes)
+    #
+    #     layers = [block1, block2, block3]
+    #     return nn.SequentialCell(*layers)
+
+    def construct(self, x):
+        # kuhn edited. The data type other than cell or Primitive is not allowed in Cell.construct.
+        intermediate_features = {}
+        print("######################################## ms_resnet.construct")
+        print("before conv1:", x.shape)
+        x = self.conv1(x)
+        print("ms_resnet_conv1:", x.shape)
+        intermediate_features['conv1'] = x
+        x = self.bn1(x)
+        print("ms_resnet_bn1:", x.shape)
+        intermediate_features['bn1'] = x
+        x = self.relu(x)
+        print("ms_resnet_relu1:", x.shape)
+        intermediate_features['relu1'] = x
+        x = self.maxpool(x)
+        print("ms_resnet_maxpool1:", x.shape)
+
+        x = self.layer1(x)
+        intermediate_features['layer1'] = x
+        x = self.layer2(x)
+        intermediate_features['layer2'] = x
+        x = self.layer3(x)
+        intermediate_features['layer3'] = x
+        x = self.layer4(x)
+
+        x = self.avgpool2d(x)  # kuhn edited. Might cause error.
+        intermediate_features['avgpool2d'] = x
+
+        # x = self.avgpool2d(x, x.shape[2:])
+        x = x.view(x.shape[0], -1)
+
+        x = self.feat(x)
+        intermediate_features['feat'] = x
+        fea = self.feat_bn(x)
+        fea_norm = P.L2Normalize()(fea)
+        intermediate_features['feat_bn'] = fea_norm
+
+        x = P.ReLU()(fea)
+        x = self.classifier(x)
+        return x, intermediate_features
 
 
 def weights_converter():
@@ -472,19 +562,24 @@ def blockTest_torchVSms():
     ##########nhuk#################################### param setting
 
     mblock_net = ResNet(Bottleneck, [3, 4, 6, 3], config.class_num, train=False)
+    # tblock_net = t_ResNet(tBottleneck, [3, 4, 6, 3], 702, False)
     tblock_net = load_torch_model()
+
+    # mblock_net = layer1(Bottleneck, 64)
+    # tblock_net = tlayer1(tBottleneck, 64)
+
+    test_input = np.random.randn(6, 3, 256, 128).astype(np.float32)  # for test resnet as a whole
+    # test_input = np.random.randn(6, 64, 64, 32).astype(np.float32)  # test layer1
+
+    txt_save_name = "layer1"
+    ##########nhuk####################################
+    m_txt = "m_" + txt_save_name + ".txt"
+    t_txt = "t_" + txt_save_name + ".txt"
+    ms_ckpt = "ms_" + txt_save_name + ".ckpt"
 
     mblock_net.set_train(False)
     tblock_net.eval()
-
-    ########################################
-    m_txt = "m_resnet50.txt"
-    t_txt = "t_resnet50.txt"
-    ms_ckpt = 'm_resnet.ckpt'
-    test_input = np.random.randn(6, 3, 256, 128).astype(np.float32) # for test resnet as a whole
-    ##########nhuk####################################
     generate_param_mapping_ms(mblock_net, tblock_net, m_txt, t_txt, ms_ckpt)
-    # gen_param_mapping(mblock_net, tblock_net, ms_ckpt)
 
     mblock_net = load_ms_model(mblock_net, ms_ckpt)
     # save_one_param_weights_numpy(mblock_net, tblock_net)
@@ -505,6 +600,7 @@ def blockTest_torchVSms():
     ##########nhuk####################################
 
     tensor_diff_and_save_txt(m_tensor_out, t_tensor_out, "final")
+
 
 def save_one_param_weights_numpy(mblock_net, tblock_net):
     with open("t_bn2.txt", "w") as f:
