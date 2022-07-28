@@ -174,64 +174,28 @@ class Bottleneck(nn.Cell):
         self.relu = nn.ReLU()  # kuhn edited  there is no inplace parameter in ReLU
         self.downsample = downsample
 
-    # ##########nhuk#################################### the original one
-    # def construct(self, x):
-    #     residual = x
-    #
-    #     out = self.conv1(x)
-    #     out = self.bn1(out)
-    #     out = self.relu(out)
-    #
-    #     out = self.conv2(out)
-    #     out = self.bn2(out)
-    #     out = self.relu(out)
-    #
-    #     out = self.conv3(out)
-    #     out = self.bn3(out)
-    #
-    #     if self.downsample is not None:
-    #         residual = self.downsample(x)
-    #
-    #     out = out + residual
-    #     out = self.relu(out)
-    #
-    #     return out
-    # ##########nhuk####################################
-
-    ##########nhuk#################################### build for testing block
+    ##########nhuk#################################### the original one
     def construct(self, x):
-        intermediate_features = {}
         residual = x
-        print("residual shape:", residual.shape)
 
         out = self.conv1(x)
-        intermediate_features['conv1'] = out
         out = self.bn1(out)
-        intermediate_features['bn1'] = out
         out = self.relu(out)
-        intermediate_features['relu1'] = out
 
         out = self.conv2(out)
-        intermediate_features['conv2'] = out
         out = self.bn2(out)
-        intermediate_features['bn2'] = out
         out = self.relu(out)
 
         out = self.conv3(out)
-        intermediate_features['conv3'] = out
         out = self.bn3(out)
-        intermediate_features['bn3'] = out
-        print("out shape: ", out.shape)
 
         if self.downsample is not None:
             residual = self.downsample(x)
-            print("residual shape:", residual.shape)
-        print("residual shape: ", residual.shape)
 
-        out += residual
+        out = out + residual
         out = self.relu(out)
 
-        return out, intermediate_features
+        return out
     ##########nhuk####################################
 
 
@@ -351,52 +315,20 @@ class tBottleneck(tnn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    # ##########nhuk#################################### original one
-    # def forward(self, x):
-    #     residual = x
-    #
-    #     out = self.conv1(x)
-    #     out = self.bn1(out)
-    #     out = self.relu(out)
-    #
-    #     out = self.conv2(out)
-    #     out = self.bn2(out)
-    #     out = self.relu(out)
-    #
-    #     out = self.conv3(out)
-    #     out = self.bn3(out)
-    #
-    #     if self.downsample is not None:
-    #         residual = self.downsample(x)
-    #
-    #     out += residual
-    #     out = self.relu(out)
-    #
-    #     return out
-    # ##########nhuk####################################
-
-    ##########nhuk#################################### for testing block
+    ##########nhuk#################################### original one
     def forward(self, x):
-        intermediate_features = {}
         residual = x
 
         out = self.conv1(x)
-        intermediate_features['conv1'] = out
         out = self.bn1(out)
-        intermediate_features['bn1'] = out
         out = self.relu(out)
-        intermediate_features['relu1'] = out
 
         out = self.conv2(out)
-        intermediate_features['conv2'] = out
         out = self.bn2(out)
-        intermediate_features['bn2'] = out
         out = self.relu(out)
 
         out = self.conv3(out)
-        intermediate_features['conv3'] = out
         out = self.bn3(out)
-        intermediate_features['bn3'] = out
 
         if self.downsample is not None:
             residual = self.downsample(x)
@@ -404,7 +336,7 @@ class tBottleneck(tnn.Module):
         out += residual
         out = self.relu(out)
 
-        return out, intermediate_features
+        return out
     ##########nhuk####################################
 
 
@@ -538,37 +470,24 @@ def torchVSms():
 
 def blockTest_torchVSms():
     ##########nhuk#################################### param setting
-    t_downsample_proc = tnn.Sequential(
-        tnn.Conv2d(64, 256, kernel_size=1, stride=1, bias=False),
-        tnn.BatchNorm2d(256), )
-    m_downsample_proc = nn.SequentialCell([
-        nn.Conv2d(64, 256, kernel_size=1, stride=1, has_bias=False),
-        nn.BatchNorm2d(256)])
-    # tblock_net = t_downsample_proc
-    # mblock_net = m_downsample_proc
 
-    # tblock_net = tBottleneck(inplanes=64, planes=16, stride=1, downsample=t_downsample_proc)
-    # mblock_net = Bottleneck(inplanes=64, planes=16, stride=1, downsample=m_downsample_proc)
-    tblock_net = tBottleneck(inplanes=64, planes=64, stride=1, downsample=t_downsample_proc)
-    mblock_net = Bottleneck(inplanes=64, planes=64, stride=1, downsample=m_downsample_proc)
-    # mblock_net = ResNet(Bottleneck, [3, 4, 6, 3], config.class_num, train=False)
-    # tblock_net = load_torch_model()
+    mblock_net = ResNet(Bottleneck, [3, 4, 6, 3], config.class_num, train=False)
+    tblock_net = load_torch_model()
 
     mblock_net.set_train(False)
     tblock_net.eval()
 
     ########################################
-    m_txt = "bottleneck.txt"
-    t_txt = "tbottleneck.txt"
-    ms_ckpt = 'mbottleneck.ckpt'
-    # test_input = np.random.randn(6, 3, 256, 128).astype(np.float32) # for test resnet as a whole
-    test_input = np.random.randn(6, 64, 64, 32).astype(np.float32)  # for test block
+    m_txt = "m_resnet50.txt"
+    t_txt = "t_resnet50.txt"
+    ms_ckpt = 'm_resnet.ckpt'
+    test_input = np.random.randn(6, 3, 256, 128).astype(np.float32) # for test resnet as a whole
     ##########nhuk####################################
     generate_param_mapping_ms(mblock_net, tblock_net, m_txt, t_txt, ms_ckpt)
     # gen_param_mapping(mblock_net, tblock_net, ms_ckpt)
 
     mblock_net = load_ms_model(mblock_net, ms_ckpt)
-    save_one_param_weights_numpy(mblock_net, tblock_net)
+    # save_one_param_weights_numpy(mblock_net, tblock_net)
 
     m_tensor_in = Tensor(test_input)
     t_tensor_in = torch.from_numpy(test_input)
