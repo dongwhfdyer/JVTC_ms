@@ -161,22 +161,6 @@ def _fc(in_channel, out_channel, ):
 
 
 class Bottleneck(nn.Cell):
-    """
-    ResNet V1 residual block definition.
-
-    Args:
-        inplanes (int): Input channel.
-        out_channel (int): Output channel.
-        stride (int): Stride size for the first convolutional layer. Default: 1.
-        use_se (bool): Enable SE-ResNet50 net. Default: False.
-        se_block(bool): Use se block in SE-ResNet50 net. Default: False.
-
-    Returns:
-        Tensor, output tensor.
-
-    Examples:
-        >>> Bottleneck(3, 256, stride=2)
-    """
     expansion = 4
 
     def __init__(self, inplanes, planes, stride=1, downsample=None):
@@ -190,73 +174,65 @@ class Bottleneck(nn.Cell):
         self.relu = nn.ReLU()  # kuhn edited  there is no inplace parameter in ReLU
         self.downsample = downsample
 
-        # if stride != 1 or in_channel != out_channel:
-        #     self.down_sample = True
-        # self.down_sample_layer = None
-        #
-        # if self.down_sample:
-        #     self.down_sample_layer = nn.SequentialCell([_conv1x1(in_channel, out_channel, stride,
-        #                                                          ), _bn(out_channel)])
-
-    ##########nhuk#################################### the original one
-    def construct(self, x):
-        residual = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
-
-        out = self.conv3(out)
-        out = self.bn3(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out = out + residual
-        out = self.relu(out)
-
-        return out
-    ##########nhuk####################################
-
-    # ##########nhuk#################################### build for testing block
+    # ##########nhuk#################################### the original one
     # def construct(self, x):
-    #     intermediate_features = {}
     #     residual = x
-    #     print("residual shape:", residual.shape)
     #
     #     out = self.conv1(x)
-    #     intermediate_features['conv1'] = out
     #     out = self.bn1(out)
-    #     intermediate_features['bn1'] = out
     #     out = self.relu(out)
-    #     intermediate_features['relu1'] = out
     #
     #     out = self.conv2(out)
-    #     intermediate_features['conv2'] = out
     #     out = self.bn2(out)
-    #     intermediate_features['bn2'] = out
     #     out = self.relu(out)
     #
     #     out = self.conv3(out)
-    #     intermediate_features['conv3'] = out
     #     out = self.bn3(out)
-    #     intermediate_features['bn3'] = out
-    #     print("out shape: ", out.shape)
     #
     #     if self.downsample is not None:
     #         residual = self.downsample(x)
-    #         print("residual shape:", residual.shape)
-    #     print("residual shape: ", residual.shape)
     #
-    #     out += residual
+    #     out = out + residual
     #     out = self.relu(out)
     #
-    #     return out, intermediate_features
+    #     return out
     # ##########nhuk####################################
+
+    ##########nhuk#################################### build for testing block
+    def construct(self, x):
+        intermediate_features = {}
+        residual = x
+        print("residual shape:", residual.shape)
+
+        out = self.conv1(x)
+        intermediate_features['conv1'] = out
+        out = self.bn1(out)
+        intermediate_features['bn1'] = out
+        out = self.relu(out)
+        intermediate_features['relu1'] = out
+
+        out = self.conv2(out)
+        intermediate_features['conv2'] = out
+        out = self.bn2(out)
+        intermediate_features['bn2'] = out
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        intermediate_features['conv3'] = out
+        out = self.bn3(out)
+        intermediate_features['bn3'] = out
+        print("out shape: ", out.shape)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+            print("residual shape:", residual.shape)
+        print("residual shape: ", residual.shape)
+
+        out += residual
+        out = self.relu(out)
+
+        return out, intermediate_features
+    ##########nhuk####################################
 
 
 class ResNet(nn.Cell):
@@ -328,22 +304,6 @@ class ResNet(nn.Cell):
 
     def construct(self, x):
         # kuhn edited. The data type other than cell or Primitive is not allowed in Cell.construct.
-        # x = self.conv1(x)
-        # intermediate_features0  = x
-        # x = self.bn1(x)
-        # intermediate_features1 = x
-        # x = self.relu(x)
-        # intermediate_features2 = x
-        # x = self.maxpool(x)
-        #
-        # x = self.layer1(x)
-        # intermediate_features3 = x
-        # x = self.layer2(x)
-        # intermediate_features4 = x
-        # x = self.layer3(x)
-        # intermediate_features5 = x
-        # x = self.layer4(x)
-
         intermediate_features = {}
         x = self.conv1(x)
         intermediate_features['conv1'] = x
@@ -391,52 +351,20 @@ class tBottleneck(tnn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    ##########nhuk#################################### original one
-    def forward(self, x):
-        residual = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
-
-        out = self.conv3(out)
-        out = self.bn3(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out += residual
-        out = self.relu(out)
-
-        return out
-    ##########nhuk####################################
-
-    # ##########nhuk#################################### for testing block
+    # ##########nhuk#################################### original one
     # def forward(self, x):
-    #     intermediate_features = {}
     #     residual = x
     #
     #     out = self.conv1(x)
-    #     intermediate_features['conv1'] = out
     #     out = self.bn1(out)
-    #     intermediate_features['bn1'] = out
     #     out = self.relu(out)
-    #     intermediate_features['relu1'] = out
     #
     #     out = self.conv2(out)
-    #     intermediate_features['conv2'] = out
     #     out = self.bn2(out)
-    #     intermediate_features['bn2'] = out
     #     out = self.relu(out)
     #
     #     out = self.conv3(out)
-    #     intermediate_features['conv3'] = out
     #     out = self.bn3(out)
-    #     intermediate_features['bn3'] = out
     #
     #     if self.downsample is not None:
     #         residual = self.downsample(x)
@@ -444,8 +372,40 @@ class tBottleneck(tnn.Module):
     #     out += residual
     #     out = self.relu(out)
     #
-    #     return out, intermediate_features
+    #     return out
     # ##########nhuk####################################
+
+    ##########nhuk#################################### for testing block
+    def forward(self, x):
+        intermediate_features = {}
+        residual = x
+
+        out = self.conv1(x)
+        intermediate_features['conv1'] = out
+        out = self.bn1(out)
+        intermediate_features['bn1'] = out
+        out = self.relu(out)
+        intermediate_features['relu1'] = out
+
+        out = self.conv2(out)
+        intermediate_features['conv2'] = out
+        out = self.bn2(out)
+        intermediate_features['bn2'] = out
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        intermediate_features['conv3'] = out
+        out = self.bn3(out)
+        intermediate_features['bn3'] = out
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out, intermediate_features
+    ##########nhuk####################################
 
 
 def weights_converter():
@@ -529,16 +489,16 @@ def load_torch_model():
     return net
 
 
-def tensor_diff(m_tensor_out, t_tensor_out, comment: str = None):
+def tensor_diff_and_save_txt(m_tensor_out, t_tensor_out, comment: str = None):
     if comment is not None:
-        print("########################################" + comment)
+        print("######################################## tensor difference: " + comment)
     else:
         print("########################################")
-    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy()), sep=' ')
-    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-4), sep=' ')
-    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-3), sep=' ')
-    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-2), sep=' ')
-    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-1), sep=' ')
+    # print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy()) ,end=' ')
+    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-4), "under Precison:1e-4")
+    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-3), "under Precison:1e-3")
+    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-2), "under Precison:1e-2")
+    print(np.allclose(m_tensor_out.asnumpy(), t_tensor_out.detach().numpy(), atol=1e-1), "under Precison:1e-1")
     with open("m_tensor_%s.txt" % (comment), "w") as f:
         f.write(str(m_tensor_out.asnumpy()))
     with open("t_tensor_%s.txt" % (comment), "w") as f:
@@ -566,10 +526,10 @@ def torchVSms():
 
     for ind, key in enumerate(t_intermediate):
         print("######################################## mVSt intermediate " + key)
-        tensor_diff(m_intermediate[ind], t_intermediate[key])
+        tensor_diff_and_save_txt(m_intermediate[ind], t_intermediate[key])
 
     print("######################################## mVSt final result")
-    tensor_diff(m_tensor_out, t_tensor_out)
+    tensor_diff_and_save_txt(m_tensor_out, t_tensor_out)
     with open("ms_tensor_out.txt", "w") as f:
         f.write(str(m_tensor_out.asnumpy()))
     with open("torch_tensor_out.txt", "w") as f:
@@ -604,7 +564,6 @@ def blockTest_torchVSms():
     # test_input = np.random.randn(6, 3, 256, 128).astype(np.float32) # for test resnet as a whole
     test_input = np.random.randn(6, 64, 64, 32).astype(np.float32)  # for test block
     ##########nhuk####################################
-    print(tblock_net)
     generate_param_mapping_ms(mblock_net, tblock_net, m_txt, t_txt, ms_ckpt)
     # gen_param_mapping(mblock_net, tblock_net, ms_ckpt)
 
@@ -614,21 +573,19 @@ def blockTest_torchVSms():
     m_tensor_in = Tensor(test_input)
     t_tensor_in = torch.from_numpy(test_input)
 
-    #########nhuk#################################### single output
-    t_tensor_out = tblock_net(t_tensor_in)
-    m_tensor_out = mblock_net(m_tensor_in)
-    #########nhuk####################################
+    # #########nhuk#################################### single output
+    # t_tensor_out = tblock_net(t_tensor_in)
+    # m_tensor_out = mblock_net(m_tensor_in)
+    # #########nhuk####################################
 
-    # ##########nhuk#################################### multi output
-    # t_tensor_out, t_intermediate = tblock_net(t_tensor_in)
-    # m_tensor_out, m_intermediate = mblock_net(m_tensor_in)
-    # for ind, key in enumerate(t_intermediate):
-    #     tensor_diff(m_intermediate[ind], t_intermediate[key], key)
-    # ##########nhuk####################################
+    ##########nhuk#################################### multi output
+    t_tensor_out, t_intermediate = tblock_net(t_tensor_in)
+    m_tensor_out, m_intermediate = mblock_net(m_tensor_in)
+    for ind, key in enumerate(t_intermediate):
+        tensor_diff_and_save_txt(m_intermediate[ind], t_intermediate[key], key)
+    ##########nhuk####################################
 
-    tensor_diff(m_tensor_out, t_tensor_out, "final")
-
-
+    tensor_diff_and_save_txt(m_tensor_out, t_tensor_out, "final")
 
 def save_one_param_weights_numpy(mblock_net, tblock_net):
     with open("t_bn2.txt", "w") as f:
