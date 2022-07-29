@@ -176,24 +176,17 @@ class Bottleneck(nn.Cell):
 
     ##########nhuk#################################### the original one
     def construct(self, x):
-        print("######################################## ms_Bottleneck.construct")
         residual = x
 
-        print("before conv1", x.shape)
         out = self.conv1(x)
-        print("ms_bottleneck conv1", out.shape)
         out = self.bn1(out)
-        print("ms_bottleneck bn1", out.shape)
         out = self.relu(out)
-        print("ms_bottleneck relu1", out.shape)
 
         out = self.conv2(out)
-        print("ms_bottleneck conv2", out.shape)
         out = self.bn2(out)
         out = self.relu(out)
 
         out = self.conv3(out)
-        print("ms_bottleneck conv3", out.shape)
         out = self.bn3(out)
 
         if self.downsample is not None:
@@ -247,45 +240,6 @@ class tBottleneck(tnn.Module):
     ##########nhuk####################################
 
 
-class layer1(nn.Cell):
-    def __init__(self, block, planes, blocks=3, stride=1):
-        super(layer1, self).__init__()
-        self.inplanes = 64
-        self.downsample = nn.SequentialCell([
-            nn.Conv2d(self.inplanes, planes * block.expansion, kernel_size=1, stride=stride, has_bias=False),
-            nn.BatchNorm2d(planes * block.expansion)])
-        self.block1 = block(self.inplanes, planes, stride, downsample=self.downsample)
-        self.block2 = block(self.inplanes * 4, planes)
-        self.block3 = block(self.inplanes * 4, planes)
-
-    # ##########nhuk#################################### only for testing layer1
-    # def construct(self, x):
-    #     intermediate_features = {}
-    #     x = self.block1(x)
-    #     intermediate_features['block1'] = x
-    #     x = self.block2(x)
-    #     intermediate_features['block2'] = x
-    #     out = self.block3(x)
-    #     return out, intermediate_features
-    # ##########nhuk####################################
-
-    ##########nhuk####################################
-    def construct(self, x):
-        print("######################################## layer1.construct")
-        print("before block1", x.shape)
-        intermediate_features = {}
-        x = self.block1(x)
-        print("block1:", x.shape)
-        intermediate_features['block1'] = x
-        x = self.block2(x)
-        print("block2:", x.shape)
-        intermediate_features['block2'] = x
-        out = self.block3(x)
-        print("block3:", out.shape)
-        return out
-    ##########nhuk####################################
-
-
 class MaxPool2d(nn.Cell):
     def __init__(self, kernel_size, stride=None, padding=0):
         super().__init__()
@@ -309,32 +263,6 @@ class MaxPool2d(nn.Cell):
 
 
 class ResNet(nn.Cell):
-    """
-    ResNet architecture.
-
-    Args:
-        block (Cell): Block for network.
-        layers (list): Numbers of block in different layers.
-        in_channels (list): Input channel in each layer.
-        out_channels (list): Output channel in each layer.
-        strides (list):  Stride size in each layer.
-        num_classes (int): The number of classes that the training images are belonging to.
-        use_se (bool): Enable SE-ResNet50 net. Default: False.
-        se_block(bool): Use se block in SE-ResNet50 net in layer 3 and layer 4. Default: False.
-        res_base (bool): Enable parameter setting of resnet18. Default: False.
-
-    Returns:
-        Tensor, output tensor.
-
-    Examples:
-        >>> ResNet(Bottleneck,
-        >>>        [3, 4, 6, 3],
-        >>>        [64, 256, 512, 1024],
-        >>>        [256, 512, 1024, 2048],
-        >>>        [1, 2, 2, 2],
-        >>>        10)
-    """
-
     def __init__(self, block, layers, num_classes, train=True):
         self.inplanes = 64
         super(ResNet, self).__init__()
@@ -343,14 +271,12 @@ class ResNet(nn.Cell):
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding=3, has_bias=False, pad_mode="pad")
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU()
-        # self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, pad_mode="valid")  # kuhn edited. THrought experience, the torch version's padding mode seems to be "valid". I am not sure.
-        self.maxpool = MaxPool2d(kernel_size=3, stride=2, padding=1)  # kuhn edited. THrought experience, the torch version's padding mode seems to be "valid". I am not sure.
-        # self.layer1 = layer1(block, 64)  # todo: delete it
+        self.maxpool = MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=1)
-        self.avgpool2d = nn.AvgPool2d((16, 8))  # kuhn edited. might be wrong.
+        self.avgpool2d = nn.AvgPool2d((16, 8))
 
         self.num_features = 512
         self.feat = nn.Dense(512 * block.expansion, self.num_features)  # kuhn edited. I assueme that the weights would be replaced by ckpts,so I didn't set any speical init weights.
@@ -370,97 +296,33 @@ class ResNet(nn.Cell):
             layers.append(block(self.inplanes, planes))
         return nn.SequentialCell(*layers)
 
-        # resnet_block = block(in_channel, out_channel, stride=stride, )
-        # layers.append(resnet_block)
-        # for _ in range(1, layer_num):
-        #     resnet_block = block(out_channel, out_channel, stride=1, )
-        #     layers.append(resnet_block)
-        # return nn.SequentialCell(layers)
-
-    # def _make_layer2(self, block, planes, blocks, stride=1):
-    #     downsample = nn.SequentialCell([
-    #         nn.Conv2d(self.inplanes, planes * block.expansion, kernel_size=1, stride=stride, has_bias=False),
-    #         nn.BatchNorm2d(planes * block.expansion)])
-    #     block1 = block(self.inplanes, planes, stride, downsample)
-    #     for i in range(1, blocks):
-    #         block(self.inplanes, planes)
-    #
-    #     layers = [block1, block2, block3]
-    #     return nn.SequentialCell(*layers)
-
     def construct(self, x):
         # kuhn edited. The data type other than cell or Primitive is not allowed in Cell.construct.
-        intermediate_features = {}
-        print("######################################## ms_resnet.construct")
-        print("before conv1:", x.shape)
         x = self.conv1(x)
-        print("ms_resnet_conv1:", x.shape)
-        intermediate_features['conv1'] = x
         x = self.bn1(x)
-        print("ms_resnet_bn1:", x.shape)
-        intermediate_features['bn1'] = x
         x = self.relu(x)
-        print("ms_resnet_relu1:", x.shape)
-        intermediate_features['relu1'] = x
         x = self.maxpool(x)
-        print("ms_resnet_maxpool1:", x.shape)
 
         x = self.layer1(x)
-        intermediate_features['layer1'] = x
         x = self.layer2(x)
-        intermediate_features['layer2'] = x
         x = self.layer3(x)
-        intermediate_features['layer3'] = x
         x = self.layer4(x)
 
-        x = self.avgpool2d(x)  # kuhn edited. Might cause error.
-        intermediate_features['avgpool2d'] = x
+        x = self.avgpool2d(x)
 
-        # x = self.avgpool2d(x, x.shape[2:])
         x = x.view(x.shape[0], -1)
 
         x = self.feat(x)
-        intermediate_features['feat'] = x
         fea = self.feat_bn(x)
         fea_norm = P.L2Normalize()(fea)
-        intermediate_features['feat_bn'] = fea_norm
 
         x = P.ReLU()(fea)
         x = self.classifier(x)
-        return x, intermediate_features
+
+        return x, fea_norm, fea
 
 
-def weights_converter():
-    par_dict = torch.load("checkpoint/resnet50_duke2market_epoch00100.pth", map_location='cpu')
-    params_list = []
-    f1 = open("ms_model_param_name.txt", "r")
-    f2 = open("torch_model_param_name.txt", "r")
-    lines_f1 = f1.readlines()
-    lines_f2 = f2.readlines()
-    for i in range(len(lines_f1)):
-        param_dict = {}
-        param_dict["name"] = lines_f1[i].strip()
-        param_dict['data'] = Tensor(par_dict[lines_f2[i].strip()].numpy())
-        params_list.append(param_dict)
-
-    save_checkpoint(params_list, 'ms_resnet50.ckpt')
-    f1.close()
-    f2.close()
-
-
-def print_ms_model_param_name(net=None, file_name=None):
-    if net is None:
-        net = ResNet(Bottleneck, [3, 4, 6, 3], config.class_num, train=False)
-    if file_name is None:
-        file_name = "ms_model_param_name.txt"
-    with open(file_name, 'w') as f:
-        for item in net.get_parameters():
-            f.write(str(item.name) + '\n')
-            # f.write(str(item.name) + ' ' + str(item.shape) + '\n')
-        # f.write(str(net))
-
-
-def load_ms_model(net=None, checkpoint=None):
+def load_ms_resnet50_model(net=None, checkpoint=None):
     if net is None:
         net = ResNet(Bottleneck, [3, 4, 6, 3], config.class_num, train=False)
     if checkpoint is None:
@@ -506,8 +368,6 @@ def t_resnet50(pretrained=None, num_classes=1000, train=True):
 
 def load_torch_model():
     net, _ = t_resnet50(pretrained="checkpoint/resnet50_duke2market_epoch00100.pth", num_classes=702, train=False)
-    # net = ResNet(Bottleneck, [3, 4, 6, 3], config.class_num, train=False)
-    # net.load_state_dict(torch.load("checkpoint/resnet50_duke2market_epoch00100.pth", map_location='cpu'))
     return net
 
 
@@ -524,37 +384,6 @@ def tensor_diff_and_save_txt(m_tensor_out, t_tensor_out, comment: str = None):
     with open("m_tensor_%s.txt" % (comment), "w") as f:
         f.write(str(m_tensor_out.asnumpy()))
     with open("t_tensor_%s.txt" % (comment), "w") as f:
-        f.write(str(t_tensor_out.detach().numpy()))
-
-
-def torchVSms():
-    m_net = load_ms_model()
-    t_net = load_torch_model()
-    m_net.set_train(False)
-    t_net.eval()
-
-    test_input = np.random.randn(6, 3, 256, 128).astype(np.float32)
-    m_tensor_in = Tensor(test_input)
-    t_tensor_in = torch.from_numpy(test_input)
-
-    t_tensor_out, t_intermediate = t_net(t_tensor_in)
-    # m_whole_interd = m_net(m_tensor_in)
-    # m_tensor_out = m_whole_interd[0]
-    # m_intermediate = m_whole_interd[1:]
-    m_tensor_out, m_intermediate = m_net(m_tensor_in)
-
-    print("type of m_intermediate: ", type(m_intermediate))
-    print("len of m_intermediate: ", len(m_intermediate))
-
-    for ind, key in enumerate(t_intermediate):
-        print("######################################## mVSt intermediate " + key)
-        tensor_diff_and_save_txt(m_intermediate[ind], t_intermediate[key])
-
-    print("######################################## mVSt final result")
-    tensor_diff_and_save_txt(m_tensor_out, t_tensor_out)
-    with open("ms_tensor_out.txt", "w") as f:
-        f.write(str(m_tensor_out.asnumpy()))
-    with open("torch_tensor_out.txt", "w") as f:
         f.write(str(t_tensor_out.detach().numpy()))
 
 
@@ -581,7 +410,7 @@ def blockTest_torchVSms():
     tblock_net.eval()
     generate_param_mapping_ms(mblock_net, tblock_net, m_txt, t_txt, ms_ckpt)
 
-    mblock_net = load_ms_model(mblock_net, ms_ckpt)
+    mblock_net = load_ms_resnet50_model(mblock_net, ms_ckpt)
     # save_one_param_weights_numpy(mblock_net, tblock_net)
 
     m_tensor_in = Tensor(test_input)
@@ -623,45 +452,5 @@ def save_one_param_weights_numpy(mblock_net, tblock_net):
         f.write(str(mblock_net.parameters_dict()['bn2.beta'].asnumpy()))
 
 
-def save_param_txt():
-    pth_path = "checkpoint/resnet50_duke2market_epoch00100.pth"
-    txt_path = "torch_model_param_name.txt"
-    # #########nhuk#################################### torch
-    #
-    # par_dict = torch.load(pth_path, map_location='cpu')
-    # with open(txt_path,'w') as f:
-    #     for i in par_dict.keys():
-    #         f.write(i + '\n')
-    # #########nhuk####################################
-    #########nhuk####################################
-    par_dict = torch.load(pth_path, map_location='cpu')
-    with open(txt_path, 'w') as f:
-        for i in par_dict.keys():
-            if not "num_batches_tracked" in i:
-                f.write(i + '\n')
-    #########nhuk####################################
-    print("parameter name saved")
-
-
 if __name__ == '__main__':
-    # torchVSms()
     blockTest_torchVSms()
-    # test_print()
-    # generate_param_mapping()
-    # weights_converter()
-    # print_ms_model_param_name()
-    # process_weights_txt()
-    # ##########nhuk#################################### MindSpore
-    # net = ResNet(Bottleneck, [3, 4, 6, 3], config.class_num, train=False)
-    # with open('ms_model.txt', 'w') as f:
-    #     for item in net.get_parameters():
-    #         f.write(str(item.name) + ' ' + str(item.shape) + '\n')
-    #     # f.write(str(net))
-    # ##########nhuk####################################
-    # context.set_context(mode=context.PYNATIVE_MODE, device_target='Ascend',save_graphs=True, save_graphs_path='./graphs')
-
-    # par_dict = torch.load("checkpoint/resnet50_duke2market_epoch00100.pth", map_location='cpu')
-    # conv1_weight = par_dict['conv1.weighttorch']
-    # print(conv1_weight.shape)
-
-    print("hello")
