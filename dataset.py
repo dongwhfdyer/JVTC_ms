@@ -1,5 +1,14 @@
 import os
-import time
+import sys
+
+import numpy as np
+
+neglected_paths = ['/usr/local/Ascend/nnae/latest/fwkacllib/python/site-packages', '/usr/local/Ascend/tfplugin/latest/tfplugin/python/site-packages', '/home/ma-user/anaconda3/envs/MindSpore/lib/python3.7', '/home/ma-user/anaconda3/envs/MindSpore/lib/python3.7/site-packages', '/home/ma-user/modelarts/modelarts-sdk', '/opt/conda/lib/python3.7/site-packages']
+# neglected_paths = ['/usr/local/Ascend/nnae/latest/fwkacllib/python/site-packages', '/usr/local/Ascend/nnae/latest/fwkacllib/python/site-packages/auto_tune.egg', '/usr/local/Ascend/nnae/latest/fwkacllib/python/site-packages/schedule_search.egg', '/usr/local/Ascend/tfplugin/latest/tfplugin/python/site-packages', '/usr/local/Ascend/nnae/latest/opp/op_impl/built-in/ai_core/tbe',
+#                    '/home/ma-user/anaconda3/envs/MindSpore/lib/python37.zip', '/home/ma-user/anaconda3/envs/MindSpore/lib/python3.7', '/home/ma-user/anaconda3/envs/MindSpore/lib/python3.7/lib-dynload', '/home/ma-user/anaconda3/envs/MindSpore/lib/python3.7/site-packages', '/home/ma-user/modelarts/modelarts-sdk', '/home/ma-user/modelarts/common-algo-toolkit', '/home/ma-user/modelarts/ma-cli',
+#                    '/opt/conda/lib/python3.7/site-packages']
+for path in neglected_paths:
+    sys.path.append(path)
 
 import mindspore
 import mindspore.dataset as ds
@@ -7,14 +16,11 @@ import mindspore.dataset as ds
 import mindspore.common.dtype as mstype
 import mindspore.dataset.vision.c_transforms as C
 import mindspore.dataset.vision.py_transforms as P
-import mindspore.dataset.transforms.c_transforms as C2
-import numpy as np
 from PIL import Image
 from mindspore import context
 from mindspore import Tensor
 import mindspore.ops as ops
 
-import kuhn_utils.whimsy as whimsy
 
 # train_transform = T.Compose([
 #     T.Resize((256, 128)),
@@ -63,18 +69,19 @@ class imgdataset_camtrans():
         camid = self.cam_list[index]
         # self.num_cam_ = Tensor([self.num_cam], dtype=mindspore.int32)
 
-        cams = ops.Randperm(max_length=num_cam, pad=-1)(Tensor([num_cam], dtype=mstype.int32))
-        cams_ = Tensor(cams, dtype=mindspore.int32) + 1
+        # cams = ops.Randperm(max_length=self.num_cam, pad=-1)(Tensor([self.num_cam], dtype=mstype.int32))
+        # cams_ = Tensor(cams, dtype=mindspore.int32) + 1
+        cams = np.random.permutation(self.num_cam) + 1
+
         imgs = []
 
-        for sel_cam in cams_[0:self.K]:  # todo might be wrong
+        for sel_cam in cams[0:self.K]:  # todo might be wrong
             if sel_cam != camid:
                 im_path_cam = im_path[:-4] + '_fake_' + str(camid) + 'to' + str(sel_cam) + '.jpg'
             else:
                 im_path_cam = im_path
             image = Image.open(im_path_cam)
             imgs.append(image)
-
         return imgs[0], imgs[1], imgs[2], imgs[3], imgs[4], imgs[5], self.label_list[index], index  # todo: it's not elegant. But I don't know how to do it better.
         # return (*imgs, self.label_list[index], index)
 
@@ -86,15 +93,17 @@ def create_dataset(dataset_dir, ann_file, batch_size, state, num_cam=6, K=6):
     mean = [0.485 * 255, 0.456 * 255, 0.406 * 255]
     std = [0.229 * 255, 0.224 * 255, 0.225 * 255]
     train_transform = [
-        C.Resize((255, 128)),
+        C.Resize((256, 128)),
         C.RandomHorizontalFlip(),
         C.Normalize(mean=mean, std=std),
         P.RandomErasing(prob=0.5),
+        C.HWC2CHW(),
     ]
 
     test_transform = [
-        C.Resize((255, 128)),
+        C.Resize((256, 128)),
         C.Normalize(mean=mean, std=std),
+        C.HWC2CHW(),
     ]
 
     if state == 'train':
@@ -177,23 +186,23 @@ if __name__ == '__main__':
     train_dataset = create_dataset(train_dataset_path, ann_file_train, batch_size=1, state='train', num_cam=num_cam, K=num_cam, )
     test_datset = create_dataset(test_dataset_path, ann_file_test, batch_size=1, state='test')
 
-    ################################################## test train_dataset
-    # for data in train_dataset.create_dict_iterator():
-    #     data1 = data['images0'].asnumpy()
-    #     label1 = data['labels'].asnumpy()
-    #     print("IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII 5")
-    #     print(data1.shape)
-    ##################################################
-
-    ################################################## test test_dataset
-    for data in test_datset.create_dict_iterator():
-        data1 = data['images'].asnumpy()
+    ##########nhuk#################################### test train_dataset
+    for data in train_dataset.create_dict_iterator():
+        data1 = data['images0'].asnumpy()
         label1 = data['labels'].asnumpy()
+        print("IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII 5")
         print(data1.shape)
-        print(type(data1))
-        whimsy.get_statistics(data1)
-        time.sleep(4)
-    ##################################################
+    ##########nhuk####################################
+
+    # ##########nhuk#################################### test test_dataset
+    # for data in test_datset.create_dict_iterator():
+    #     data1 = data['images'].asnumpy()
+    #     label1 = data['labels'].asnumpy()
+    #     print(data1.shape)
+    #     print(type(data1))
+    #     whimsy.get_statistics(data1)
+    #     time.sleep(4)
+    # ##########nhuk####################################
 
     # for data1, label1, _ in train_dataset.create_tuple_iterator():
     #     # data1 = data['images'].asnumpy()

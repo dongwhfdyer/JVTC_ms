@@ -1,10 +1,10 @@
 from typing import Union
 
 import numpy as np
-import torch
 from mindspore import save_checkpoint, Parameter, Tensor, load_param_into_net
 from mindspore.common.initializer import initializer
 import mindspore
+# import torch
 
 
 def generate_param_mapping_kuhn(m_net, tor_net, m_txt, t_txt, ms_ckpt):
@@ -57,16 +57,16 @@ def save_mindspore_net_txt(net, txt_path, include_shape=False):
                 f.write(str(item.name).strip() + ' ' + str(item.shape) + '\n')
 
 
-def save_Tensor_as_txt(one_tensor: Union[torch.Tensor, mindspore.Tensor], txt_path):
-    """Save torch tensor to txt file."""
-    if isinstance(one_tensor, torch.Tensor):
-        np_array = one_tensor.numpy()
-    elif isinstance(one_tensor, mindspore.Tensor):
-        np_array = one_tensor.data.asnumpy()
-    else:
-        raise TypeError("one_tensor must be a torch.Tensor or mindspore.Tensor.")
-    with open(txt_path, "w") as f:
-        f.write(str(np_array))
+# def save_Tensor_as_txt(one_tensor: Union[torch.Tensor, mindspore.Tensor], txt_path):
+#     """Save torch tensor to txt file."""
+#     if isinstance(one_tensor, torch.Tensor):
+#         np_array = one_tensor.numpy()
+#     elif isinstance(one_tensor, mindspore.Tensor):
+#         np_array = one_tensor.data.asnumpy()
+#     else:
+#         raise TypeError("one_tensor must be a torch.Tensor or mindspore.Tensor.")
+#     with open(txt_path, "w") as f:
+#         f.write(str(np_array))
 
 
 def generate_param_mapping_ms(m_net, t_net, m_txt: str, t_txt: str, ckpt_ms: str):
@@ -74,8 +74,8 @@ def generate_param_mapping_ms(m_net, t_net, m_txt: str, t_txt: str, ckpt_ms: str
     ##########nhuk#################################### param save to txt
     torch_param_dict = t_net.state_dict()
     ms_param_dict = m_net.parameters_dict()
-    save_mindspore_net_txt(m_net, m_txt,include_shape=True)
-    save_torch_net_txt(t_net, t_txt,include_shape=True)
+    save_mindspore_net_txt(m_net, m_txt, include_shape=True)
+    save_torch_net_txt(t_net, t_txt, include_shape=True)
     ##########nhuk####################################
 
     for ms_key in ms_param_dict.keys():

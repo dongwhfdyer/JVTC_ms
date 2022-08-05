@@ -1,37 +1,73 @@
-import torch
-import mindspore
-from mindspore.common.initializer import initializer, HeNormal
-import numpy as np
-import torch.nn as tnn
-import mindspore.nn as mnn
-from mindspore.ops import operations as P
+import os
+import time
+from threading import Thread
 
-# The following implements BatchNorm2d with MindSpore.
-import torch
-import mindspore.nn as nn
-from mindspore import Tensor
 
-net = nn.BatchNorm2d(num_features=2, momentum=0.8)
-x = Tensor(np.array([[[[1, 2], [1, 2]], [[3, 4], [3, 4]]]]).astype(np.float32))
-output = net(x)
-print(output)
-# Out:
-# [[[[0.999995   1.99999]
-#    [0.999995   1.99999]]
+# ##########nhuk#################################### multi-thread ;daemon threads
+# def run(n):
+#     print('task', n)
+#     time.sleep(1)
+#     print('2s')
+#     time.sleep(1)
+#     print('1s')
+#     time.sleep(1)
+#     print('0s')
+#     time.sleep(1)
 #
-#   [[2.999985   3.99998]
-#    [2.999985   3.99998]]]]
-
-
-# The following implements BatchNorm2d with torch.
-input_x = torch.tensor(np.array([[[[1, 2], [1, 2]], [[3, 4], [3, 4]]]]).astype(np.float32))
-m = torch.nn.BatchNorm2d(2, momentum=0.2)
-output = m(input_x)
-print(output)
-# Out:
-# tensor([[[[-1.0000,  1.0000],
-#           [-1.0000,  1.0000]],
 #
-#          [[-1.0000,  1.0000],
-#           [-1.0000,  1.0000]]]], grad_fn=<NativeBatchNormBackward>)
+# if __name__ == '__main__':
+#     t1 = Thread(target=run, args=('t1',))  # target是要执行的函数名（不是函数），args是函数对应的参数，以元组的形式存在
+#     t2 = Thread(target=run, args=('t2',))
+#     t1.setDaemon(True)
+#     t2.setDaemon(True)
+#     t1.start()
+#     t2.start()
+#     time.sleep(2)
+# ##########nhuk####################################
 
+
+##########nhuk#################################### multi-thread
+# I/0密集型任务
+def work():
+    time.sleep(2)
+    print("===>", file=open("tmp.txt", "a"))
+
+
+if __name__ == "__main__":
+    l = []
+    print("本机为", os.cpu_count(), "核 CPU")  # 本机为4核
+    start = time.time()
+
+    for i in range(400):
+        p = Thread(target=work)  # 多线程
+        l.append(p)
+        p.start()
+    for p in l:
+        p.join()
+    stop = time.time()
+    print("I/0密集型任务，多线程耗时 %s" % (stop - start))
+##########nhuk####################################
+
+
+##########nhuk#################################### multi-processing
+# from multiprocessing import Process
+# import os, time
+#
+# #I/0密集型任务
+# def work():
+#     time.sleep(2)
+#     print("===>", file=open("tmp.txt", "w"))
+#
+# if __name__ == "__main__":
+#     l = []
+#     print("本机为", os.cpu_count(), "核 CPU")  # 本机为4核
+#     start = time.time()
+#     for i in range(400):
+#         p = Process(target=work)  # 多进程
+#         l.append(p)
+#         p.start()
+#     for p in l:
+#         p.join()
+#     stop = time.time()
+#     print("I/0密集型任务，多进程耗时 %s" % (stop - start))
+##########nhuk####################################

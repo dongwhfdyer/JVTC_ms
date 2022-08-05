@@ -113,20 +113,39 @@ def merge(args, cfg):
     return cfg
 
 
+# def get_config():
+#     """
+#     Get Config according to the yaml file and cli arguments.
+#     """
+#     parser = argparse.ArgumentParser(description="default name", add_help=False)
+#     current_dir = os.path.dirname(os.path.abspath(__file__))
+#     parser.add_argument("--config_path", type=str, default=os.path.join(current_dir, "resnet50_imagenet2012_config.yaml"), help="Config file path")
+#     path_args, _ = parser.parse_known_args()
+#     default, helper, choices = parse_yaml(path_args.config_path)
+#     args = parse_cli_to_yaml(parser=parser, cfg=default, helper=helper, choices=choices, cfg_path=path_args.config_path)
+#     final_config = merge(args, default)
+#     # pprint(final_config)
+#     # print("Please check the above information for the configurations", flush=True)
+#     return Config(final_config)
 def get_config():
     """
     Get Config according to the yaml file and cli arguments.
     """
     parser = argparse.ArgumentParser(description="default name", add_help=False)
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    parser.add_argument("--config_path", type=str, default=os.path.join(current_dir, "resnet50_imagenet2012_config.yaml"), help="Config file path")
-    path_args, _ = parser.parse_known_args()
-    default, helper, choices = parse_yaml(path_args.config_path)
-    args = parse_cli_to_yaml(parser=parser, cfg=default, helper=helper, choices=choices, cfg_path=path_args.config_path)
-    final_config = merge(args, default)
+    default, helper, choices = parse_yaml(os.path.join(current_dir, "resnet50_imagenet2012_config.yaml"))
+    # args = parse_cli_to_yaml(parser=parser, cfg=default, helper=helper, choices=choices, cfg_path=path_args.config_path)
+    # final_config = merge(args, default)
     # pprint(final_config)
     # print("Please check the above information for the configurations", flush=True)
-    return Config(final_config)
+    # return Config(final_config)
+    return Config(default)
+    # return default
 
 
+# if __name__ == '__main__':
+#     config = get_config()
+#     print(config)
+#     print("########################################")
+#     print(config.class_num)
 config = get_config()
