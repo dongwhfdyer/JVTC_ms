@@ -61,7 +61,7 @@ class imgdataset_camtrans():
         cams = np.random.permutation(self.num_cam) + 1
 
         imgs = []
-
+        # print("cams[0:self.K]:", cams[0:self.K])
         for sel_cam in cams[0:self.K]:  # todo might be wrong
             if sel_cam != camid:
                 im_path_cam = im_path[:-4] + '_fake_' + str(camid) + 'to' + str(sel_cam) + '.jpg'
@@ -69,6 +69,10 @@ class imgdataset_camtrans():
                 im_path_cam = im_path
             image = Image.open(im_path_cam)
             imgs.append(image)
+        # print("len(imgs):", len(imgs))
+        if len(imgs) == 8:
+            return imgs[0], imgs[1], imgs[2], imgs[3], imgs[4], imgs[5], imgs[6], imgs[7], self.label_list[index], self.cam_list[index]
+
         return imgs[0], imgs[1], imgs[2], imgs[3], imgs[4], imgs[5], self.label_list[index], index  # todo: it's not elegant. But I don't know how to do it better.
         # return (*imgs, self.label_list[index], index)
 
@@ -92,7 +96,6 @@ def create_dataset(dataset_dir, ann_file, batch_size, state, num_cam=6, K=6, num
         C.Normalize(mean=mean, std=std),
         C.HWC2CHW(),
     ]
-
     if state == 'train':
         transform = train_transform
         columns_names_list = ['images' + str(i) for i in range(num_cam)]
@@ -164,23 +167,38 @@ def create_dataset(dataset_dir, ann_file, batch_size, state, num_cam=6, K=6, num
 #     return data_set
 
 if __name__ == '__main__':
-    context.set_context(mode=context.PYNATIVE_MODE, device_target="Ascend", device_id=0)
+    context.set_context(mode=context.GRAPH_MODE, device_target="Ascend", device_id=0)
     dataset_path = 'data'
-    train_dataset_path = dataset_path + '/market_merge'
-    test_dataset_path = dataset_path + '/Market-1501-v15.09.15/Market-1501-v15.09.15'
-    ann_file_train = 'list_market/list_market_train.txt'
-    ann_file_test = 'list_market/list_market_test.txt'
+    ann_file_train = 'list_duke/list_duke_train.txt'
+    ann_file_test = 'list_duke/list_duke_test.txt'
 
-    num_cam = 6
+    snapshot = 'ms_m2d.ckpt'  # todo
+
+    num_cam = 8
+    K = 8
+
+    train_dataset_path = dataset_path + '/duke_merge'
+    test_dataset_path = dataset_path + '/duke'
+
     train_dataset = create_dataset(train_dataset_path, ann_file_train, batch_size=1, state='train', num_cam=num_cam, K=num_cam, )
     test_datset = create_dataset(test_dataset_path, ann_file_test, batch_size=1, state='test')
 
+    img_d = imgdataset_camtrans(dataset_dir=train_dataset_path, txt_path=ann_file_train, num_cam=num_cam, K=K)
+    for i in range(10):
+        print("########################################")
+        dd = img_d.__getitem__(i)
+
     ##########nhuk#################################### test train_dataset
+    iter_n = 0
     for data in train_dataset.create_dict_iterator():
+        print("######################################## train_dataset_dict_iterator")
+        print("data.keys()", data.keys())
         data1 = data['images0'].asnumpy()
         label1 = data['labels'].asnumpy()
-        print("IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII 5")
         print(data1.shape)
+        iter_n += 1
+        if iter_n == 10:
+            break
     ##########nhuk####################################
 
     # ##########nhuk#################################### test test_dataset

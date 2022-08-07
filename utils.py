@@ -44,9 +44,8 @@ def concat_using_numpy(ms_tensor):
     return ms_tensor_concat
 
 
-def extract_fea_camtrans(model, loader):
+def extract_fea_camtrans(model, loader, num_cam=6, K=6):
     feas = []
-    K = 6
     batch_size = 1
     for data in loader.create_dict_iterator():
         # columns_names_list = ['images' + str(i) for i in range(K)]
@@ -61,7 +60,11 @@ def extract_fea_camtrans(model, loader):
         # concat_data = np.concatenate(numpy_data, axis=0)
         # concat_images = Tensor(concat_data)
 
-        concat_images = P.Concat()((data['images0'], data['images1'], data['images2'], data['images3'], data['images4'], data['images5']))
+        concat_images_ = [data['images' + str(i)] for i in range(num_cam)]
+
+        concat_images = P.Concat()(concat_images_)
+        # concat_images = P.Concat()((data['images0'], data['images1'], data['images2'], data['images3'], data['images4'], data['images5']))
+
         np.save("rubb/ms_concat_images.npy", concat_images.asnumpy())  # todo: delete
         out = model(concat_images)
         np.save("rubb/ms_out_0.npy", out[0].asnumpy())
@@ -70,7 +73,7 @@ def extract_fea_camtrans(model, loader):
         fea = fea.view(batch_size, K, -1)
         fea = fea.mean(axis=1)
         np.save("rubb/ms_fea_mean.npy", fea.asnumpy())
-        fea = P.L2Normalize(axis=1,epsilon=1e-12)(fea) # kuhn: important difference
+        fea = P.L2Normalize(axis=1, epsilon=1e-12)(fea)  # kuhn: important difference
         np.save("rubb/ms_fea.npy", fea.asnumpy())
         feas.append(fea)
 

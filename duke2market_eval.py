@@ -18,7 +18,6 @@ import numpy as np
 from mindspore import context
 from scipy.spatial.distance import cdist
 
-from config.resnet_config import config
 from dataset import create_dataset
 from resnet import ResNet, load_ms_resnet50_model, Bottleneck
 from st_distribution import get_st_distribution
@@ -45,10 +44,11 @@ if __name__ == '__main__':
     snapshot = 'm_resnet.ckpt'
 
     num_cam = 6
-    ##################################################
+    K = 6
+    ################################################## dataset setting
     train_dataset_path = dataset_path + '/market_merge'
     test_dataset_path = dataset_path + '/Market-1501-v15.09.15/Market-1501-v15.09.15'
-    train_dataset = create_dataset(dataset_dir=train_dataset_path, ann_file=ann_file_train, batch_size=1, state='train', num_cam=num_cam, K=num_cam, num_workers=32)
+    train_dataset = create_dataset(dataset_dir=train_dataset_path, ann_file=ann_file_train, batch_size=1, state='train', num_cam=num_cam, K=K, num_workers=32)
 
     test_dataset = create_dataset(dataset_dir=test_dataset_path, ann_file=ann_file_test, state='test', batch_size=1, num_workers=32)
 
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     # exit()
     # ##########nhuk####################################
 
-    model = ResNet(Bottleneck, [3, 4, 6, 3], config.class_num, train=False)
+    model = ResNet(Bottleneck, [3, 4, 6, 3], 702, train=False)
     model = load_ms_resnet50_model(model, snapshot)
     model.set_train(False)
 
