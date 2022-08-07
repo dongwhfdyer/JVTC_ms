@@ -1,8 +1,16 @@
 import pdb
+from sklearn.cluster import DBSCAN
 
 import numpy as np
 from mindspore.common.tensor import Tensor
 from mindspore.ops import operations as P
+
+
+def l2_dist(fea_query, fea_gallery):
+    dist = np.zeros((fea_query.shape[0], fea_gallery.shape[0]), dtype=np.float64)
+    for i in range(fea_query.shape[0]):
+        dist[i, :] = np.sum((fea_gallery - fea_query[i, :]) ** 2, axis=1)
+    return dist
 
 
 def get_info(file_path):
@@ -16,17 +24,17 @@ def get_info(file_path):
     return labels, cam_ids, frames
 
 
-# def cluster(dist, rho=1.6e-3):
-#     tri_mat = np.triu(dist, 1)
-#     tri_mat = tri_mat[np.nonzero(tri_mat)]
-#     tri_mat = np.sort(tri_mat, axis=None)
-#     top_num = np.round(rho * tri_mat.size).astype(int)
-#     eps = tri_mat[:top_num].mean()  # *2
-#     # print('eps in cluster: {:.3f}'.format(eps))
-#     cluster = DBSCAN(eps=eps, min_samples=1, metric='precomputed', n_jobs=8)
-#     labels = cluster.fit_predict(dist)
-#
-#     return labels
+def cluster(dist, rho=1.6e-3):
+    tri_mat = np.triu(dist, 1)
+    tri_mat = tri_mat[np.nonzero(tri_mat)]
+    tri_mat = np.sort(tri_mat, axis=None)
+    top_num = np.round(rho * tri_mat.size).astype(int)
+    eps = tri_mat[:top_num].mean()  # *2
+    # print('eps in cluster: {:.3f}'.format(eps))
+    cluster = DBSCAN(eps=eps, min_samples=1, metric='precomputed', n_jobs=8)
+    labels = cluster.fit_predict(dist)
+
+    return labels
 
 
 def concat_using_numpy(ms_tensor):
@@ -41,7 +49,7 @@ def extract_fea_camtrans(model, loader):
     K = 6
     batch_size = 1
     for data in loader.create_dict_iterator():
-        columns_names_list = ['images' + str(i) for i in range(K)]
+        # columns_names_list = ['images' + str(i) for i in range(K)]
 
         # for ind in columns_names_list:
         #     data[ind] = P.ExpandDims()(data[ind], 0)
@@ -54,22 +62,20 @@ def extract_fea_camtrans(model, loader):
         # concat_images = Tensor(concat_data)
 
         concat_images = P.Concat()((data['images0'], data['images1'], data['images2'], data['images3'], data['images4'], data['images5']))
-
-        print("concat_images", concat_images.shape)
+        np.save("rubb/ms_concat_images.npy", concat_images.asnumpy())  # todo: delete
         out = model(concat_images)
+        np.save("rubb/ms_out_0.npy", out[0].asnumpy())
+        np.save("rubb/ms_out_1.npy", out[1].asnumpy())
         fea = out[2]
-        print("fea", fea.shape)
-        fea = fea.reshape(batch_size, K, -1)
-        print("fea", fea.shape)
+        fea = fea.view(batch_size, K, -1)
         fea = fea.mean(axis=1)
-        print("fea", fea.shape)
-        fea = P.L2Normalize()(fea)
-        print("fea", fea.shape)
+        np.save("rubb/ms_fea_mean.npy", fea.asnumpy())
+        fea = P.L2Normalize(axis=1,epsilon=1e-12)(fea) # kuhn: important difference
+        np.save("rubb/ms_fea.npy", fea.asnumpy())
         feas.append(fea)
 
     feas = P.Concat()(feas)
     # feas = concat_using_numpy(feas)  # kuhn edted
-    print("feas", feas.shape)
 
     return feas.asnumpy()
 
@@ -106,7 +112,8 @@ def extract_fea_test(model, loader):
         fea = out[1]
         feas.append(fea)
 
-    feas = P.Concat(feas)
+    feas = P.Concat()(feas)
+    print("feas", feas.shape)
     return feas.asnumpy()
 
     # for i, data in enumerate(loader, 1):

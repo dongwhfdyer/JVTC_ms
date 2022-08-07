@@ -11,9 +11,10 @@ from mindspore import save_checkpoint, context, load_checkpoint, load_param_into
 from mindspore.ops import functional as F
 from mindspore.common.tensor import Tensor
 from config.resnet_config import config
-# from t_resnet import ResNet as t_ResNet, tlayer1
-# import torch
-# import torch.nn as tnn
+
+from t_resnet import ResNet as t_ResNet, tlayer1
+import torch
+import torch.nn as tnn
 
 
 # import pydevd_pycharm
@@ -182,43 +183,45 @@ class Bottleneck(nn.Cell):
     ##########nhuk####################################
 
 
-# class tBottleneck(tnn.Module):
-#     expansion = 4
-#     def __init__(self, inplanes, planes, stride=1, downsample=None):
-#         super(tBottleneck, self).__init__()
-#         self.conv1 = tnn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
-#         self.bn1 = tnn.BatchNorm2d(planes)
-#         self.conv2 = tnn.Conv2d(planes, planes, kernel_size=3, stride=stride,
-#                                 padding=1, bias=False)
-#         self.bn2 = tnn.BatchNorm2d(planes)
-#         self.conv3 = tnn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
-#         self.bn3 = tnn.BatchNorm2d(planes * 4)
-#         self.relu = tnn.ReLU(inplace=True)
-#         self.downsample = downsample
-#         self.stride = stride
-#     ##########nhuk#################################### original one
-#     def forward(self, x):
-#         residual = x
-#
-#         out = self.conv1(x)
-#         out = self.bn1(out)
-#         out = self.relu(out)
-#
-#         out = self.conv2(out)
-#         out = self.bn2(out)
-#         out = self.relu(out)
-#
-#         out = self.conv3(out)
-#         out = self.bn3(out)
-#
-#         if self.downsample is not None:
-#             residual = self.downsample(x)
-#
-#         out += residual
-#         out = self.relu(out)
-#
-#         return out
-#     ##########nhuk####################################
+class tBottleneck(tnn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(tBottleneck, self).__init__()
+        self.conv1 = tnn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
+        self.bn1 = tnn.BatchNorm2d(planes)
+        self.conv2 = tnn.Conv2d(planes, planes, kernel_size=3, stride=stride,
+                                padding=1, bias=False)
+        self.bn2 = tnn.BatchNorm2d(planes)
+        self.conv3 = tnn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
+        self.bn3 = tnn.BatchNorm2d(planes * 4)
+        self.relu = tnn.ReLU(inplace=True)
+        self.downsample = downsample
+        self.stride = stride
+
+    ##########nhuk#################################### original one
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
+    ##########nhuk####################################
 
 
 class MaxPool2d(nn.Cell):
@@ -261,7 +264,7 @@ class ResNet(nn.Cell):
 
         self.num_features = 512
         self.feat = nn.Dense(512 * block.expansion, self.num_features)  # kuhn edited. I assueme that the weights would be replaced by ckpts,so I didn't set any speical init weights.
-        self.feat_bn = nn.BatchNorm1d(self.num_features)
+        self.feat_bn = nn.BatchNorm1d(self.num_features, momentum=0.9)  # todo: just add momentum parmeter to the BN.
         self.classifier = nn.Dense(self.num_features, num_classes)
 
     def _make_layer(self, block, planes, blocks, stride=1):  # layer1: planes: 64, blocks: 3, stride: 1
@@ -279,40 +282,25 @@ class ResNet(nn.Cell):
 
     def construct(self, x):
         # kuhn edited. The data type other than cell or Primitive is not allowed in Cell.construct.
-        print("########################################")
         x = self.conv1(x)
-        print("conv1:", x.shape)
         x = self.bn1(x)
-        print("bn1:", x.shape)
         x = self.relu(x)
-        print("relu:", x.shape)
         x = self.maxpool(x)
-        print("maxpool:", x.shape)
 
         x = self.layer1(x)
-        print("layer1:", x.shape)
         x = self.layer2(x)
-        print("layer2:", x.shape)
         x = self.layer3(x)
-        print("layer3:", x.shape)
         x = self.layer4(x)
-        print("layer4:", x.shape)
 
         x = self.avgpool2d(x)
-        print("avgpool2d:", x.shape)
 
         x = x.view(x.shape[0], -1)
-        print("view:", x.shape)
 
         x = self.feat(x)
-        print("feat:", x.shape)
         fea = self.feat_bn(x)
-        print("feat_bn:", fea.shape)
-        fea_norm = P.L2Normalize()(fea)
-        print("fea_norm:", fea_norm.shape)
+        fea_norm = P.L2Normalize(axis=1, epsilon=1e-12)(fea)  # kuhn: important normalize
 
         x = P.ReLU()(fea)
-        print("relu:", x.shape)
         x = self.classifier(x)
 
         return x, fea_norm, fea
@@ -320,7 +308,7 @@ class ResNet(nn.Cell):
 
 def load_ms_resnet50_model(net=None, checkpoint=None):
     if net is None:
-        net = ResNet(Bottleneck, [3, 4, 6, 3], config.class_num, train=False)
+        net = net or ResNet(Bottleneck, [3, 4, 6, 3], config.class_num, train=False)
     if checkpoint is None:
         checkpoint = "ms_resnet50.ckpt"
     params_dict = load_checkpoint(checkpoint)
@@ -336,35 +324,36 @@ def load_ms_resnet50_model(net=None, checkpoint=None):
     return net
 
 
-# def t_resnet50(pretrained=None, num_classes=1000, train=True):
-#     model = t_ResNet(tBottleneck, [3, 4, 6, 3], num_classes, train)
-#     weight = torch.load(pretrained, map_location='cpu')
-#     static = model.state_dict()
-#
-#     base_param = []
-#     for name, param in weight.items():
-#         if name not in static:
-#             continue
-#         if isinstance(param, tnn.Parameter):
-#             param = param.data
-#         static[name].copy_(param)
-#         base_param.append(name)
-#
-#     params = []
-#     params_dict = dict(model.named_parameters())
-#     for key, v in params_dict.items():
-#         if key in base_param:
-#             params += [{'params': v, 'lr_mult': 1}]
-#         else:
-#             # new parameter have larger learning rate
-#             params += [{'params': v, 'lr_mult': 10}]
-#
-#     return model, params
+def t_resnet50(pretrained=None, num_classes=1000, train=True):
+    model = t_ResNet(tBottleneck, [3, 4, 6, 3], num_classes, train)
+    weight = torch.load(pretrained, map_location='cpu')
+    static = model.state_dict()
+
+    base_param = []
+    for name, param in weight.items():
+        if name not in static:
+            continue
+        if isinstance(param, tnn.Parameter):
+            param = param.data
+        static[name].copy_(param)
+        base_param.append(name)
+
+    params = []
+    params_dict = dict(model.named_parameters())
+    for key, v in params_dict.items():
+        if key in base_param:
+            params += [{'params': v, 'lr_mult': 1}]
+        else:
+            # new parameter have larger learning rate
+            params += [{'params': v, 'lr_mult': 10}]
+
+    return model, params
 
 
-# def load_torch_model():
-#     net, _ = t_resnet50(pretrained="checkpoint/resnet50_duke2market_epoch00100.pth", num_classes=702, train=False)
-#     return net
+def load_torch_model():
+    net, _ = t_resnet50(pretrained="checkpoint/resnet50_market2duke_epoch00100.pth", num_classes=751, train=False) # todo: param1
+    # net, _ = t_resnet50(pretrained="checkpoint/resnet50_duke2market_epoch00100.pth", num_classes=702, train=False)
+    return net
 
 
 def tensor_diff_and_save_txt(m_tensor_out, t_tensor_out, comment: str = None):
@@ -386,17 +375,15 @@ def tensor_diff_and_save_txt(m_tensor_out, t_tensor_out, comment: str = None):
 def blockTest_torchVSms():
     ##########nhuk#################################### param setting
 
-    mblock_net = ResNet(Bottleneck, [3, 4, 6, 3], config.class_num, train=False)
-    # tblock_net = t_ResNet(tBottleneck, [3, 4, 6, 3], 702, False)
+
+    mblock_net = ResNet(Bottleneck, [3, 4, 6, 3], 751, train=False) # todo: param2
+    # mblock_net = ResNet(Bottleneck, [3, 4, 6, 3], 702, train=False)
     tblock_net = load_torch_model()
 
-    # mblock_net = layer1(Bottleneck, 64)
-    # tblock_net = tlayer1(tBottleneck, 64)
 
     test_input = np.random.randn(6, 3, 256, 128).astype(np.float32)  # for test resnet as a whole
-    # test_input = np.random.randn(6, 64, 64, 32).astype(np.float32)  # test layer1
 
-    txt_save_name = "layer1"
+    txt_save_name = "m2d" # todo: param3
     ##########nhuk####################################
     m_txt = "m_" + txt_save_name + ".txt"
     t_txt = "t_" + txt_save_name + ".txt"
@@ -412,17 +399,17 @@ def blockTest_torchVSms():
     m_tensor_in = Tensor(test_input)
     t_tensor_in = torch.from_numpy(test_input)
 
-    # #########nhuk#################################### single output
-    # t_tensor_out = tblock_net(t_tensor_in)
-    # m_tensor_out = mblock_net(m_tensor_in)
-    # #########nhuk####################################
+    #########nhuk#################################### single output
+    t_tensor_out = tblock_net(t_tensor_in)[0]
+    m_tensor_out = mblock_net(m_tensor_in)[0]
+    #########nhuk####################################
 
-    ##########nhuk#################################### multi output
-    t_tensor_out, t_intermediate = tblock_net(t_tensor_in)
-    m_tensor_out, m_intermediate = mblock_net(m_tensor_in)
-    for ind, key in enumerate(t_intermediate):
-        tensor_diff_and_save_txt(m_intermediate[ind], t_intermediate[key], key)
-    ##########nhuk####################################
+    # ##########nhuk#################################### multi output
+    # t_tensor_out, t_intermediate = tblock_net(t_tensor_in)
+    # m_tensor_out, m_intermediate = mblock_net(m_tensor_in)
+    # for ind, key in enumerate(t_intermediate):
+    #     tensor_diff_and_save_txt(m_intermediate[ind], t_intermediate[key], key)
+    # ##########nhuk####################################
 
     tensor_diff_and_save_txt(m_tensor_out, t_tensor_out, "final")
 
