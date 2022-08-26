@@ -1,4 +1,7 @@
 import pdb
+import time
+from collections import deque
+
 from sklearn.cluster import DBSCAN
 
 import numpy as np
@@ -47,7 +50,21 @@ def concat_using_numpy(ms_tensor):
 def extract_fea_camtrans(model, loader, num_cam=6, K=6):
     feas = []
     batch_size = 1
+    inference_time_dequeue = deque(maxlen=1000)
+    dataLoad_modelInference_time_dequeue = deque(maxlen=1000)
+    last_time = time.time()
     for data in loader.create_dict_iterator():
+        # ---------kkuhn-block------------------------------ time per batch
+        here_time = time.time()
+        time_interval = here_time - last_time
+        dataLoad_modelInference_time_dequeue.append(time_interval)
+        if len(dataLoad_modelInference_time_dequeue) == 1000:
+            print("--------------------------------------------------")
+            print("1000 iterations of data loading and model inference time: {}s".format(np.sum(dataLoad_modelInference_time_dequeue)))
+            print('avg data loading and inference time: {:.3f}s'.format(np.mean(dataLoad_modelInference_time_dequeue)))
+        last_time = here_time
+        # ---------kkuhn-block------------------------------
+
         # columns_names_list = ['images' + str(i) for i in range(K)]
 
         # for ind in columns_names_list:
@@ -65,16 +82,31 @@ def extract_fea_camtrans(model, loader, num_cam=6, K=6):
         concat_images = P.Concat()(concat_images_)
         # concat_images = P.Concat()((data['images0'], data['images1'], data['images2'], data['images3'], data['images4'], data['images5']))
 
-        np.save("rubb/ms_concat_images.npy", concat_images.asnumpy())  # todo: delete
+        # np.save("rubb/ms_concat_images.npy", concat_images.asnumpy())  # todo: delete
+
+        # #---------kkuhn-block------------------------------ time of inference
+        # start_time = time.time()
+        # #---------kkuhn-block------------------------------
         out = model(concat_images)
-        np.save("rubb/ms_out_0.npy", out[0].asnumpy())
-        np.save("rubb/ms_out_1.npy", out[1].asnumpy())
+
+        # #---------kkuhn-block------------------------------ time of inference
+        # end_time = time.time()
+        # inference_time = end_time - start_time
+        # inference_time_dequeue.append(inference_time)
+        # if len(inference_time_dequeue) == 1000:
+        #     print("--------------------------------------------------")
+        #     print("1000 inference time: {}".format(np.sum(inference_time_dequeue)))
+        #     print('avg inference time: {:.3f}'.format(np.mean(inference_time_dequeue)))
+        # #---------kkuhn-block------------------------------
+
+        # np.save("rubb/ms_out_0.npy", out[0].asnumpy())
+        # np.save("rubb/ms_out_1.npy", out[1].asnumpy())
         fea = out[2]
         fea = fea.view(batch_size, K, -1)
         fea = fea.mean(axis=1)
-        np.save("rubb/ms_fea_mean.npy", fea.asnumpy())
+        # np.save("rubb/ms_fea_mean.npy", fea.asnumpy())
         fea = P.L2Normalize(axis=1, epsilon=1e-12)(fea)  # kuhn: important difference
-        np.save("rubb/ms_fea.npy", fea.asnumpy())
+        # np.save("rubb/ms_fea.npy", fea.asnumpy())
         feas.append(fea)
 
     feas = P.Concat()(feas)

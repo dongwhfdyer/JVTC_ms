@@ -12,9 +12,9 @@ from mindspore.ops import functional as F
 from mindspore.common.tensor import Tensor
 from config.resnet_config import config
 
-from t_resnet import ResNet as t_ResNet, tlayer1
-import torch
-import torch.nn as tnn
+# from t_resnet import ResNet as t_ResNet, tlayer1
+# import torch
+# import torch.nn as tnn
 
 
 # import pydevd_pycharm
@@ -183,45 +183,45 @@ class Bottleneck(nn.Cell):
     ##########nhuk####################################
 
 
-class tBottleneck(tnn.Module):
-    expansion = 4
-
-    def __init__(self, inplanes, planes, stride=1, downsample=None):
-        super(tBottleneck, self).__init__()
-        self.conv1 = tnn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
-        self.bn1 = tnn.BatchNorm2d(planes)
-        self.conv2 = tnn.Conv2d(planes, planes, kernel_size=3, stride=stride,
-                                padding=1, bias=False)
-        self.bn2 = tnn.BatchNorm2d(planes)
-        self.conv3 = tnn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
-        self.bn3 = tnn.BatchNorm2d(planes * 4)
-        self.relu = tnn.ReLU(inplace=True)
-        self.downsample = downsample
-        self.stride = stride
-
-    ##########nhuk#################################### original one
-    def forward(self, x):
-        residual = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
-
-        out = self.conv3(out)
-        out = self.bn3(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out += residual
-        out = self.relu(out)
-
-        return out
-    ##########nhuk####################################
+# class tBottleneck(tnn.Module):
+#     expansion = 4
+#
+#     def __init__(self, inplanes, planes, stride=1, downsample=None):
+#         super(tBottleneck, self).__init__()
+#         self.conv1 = tnn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
+#         self.bn1 = tnn.BatchNorm2d(planes)
+#         self.conv2 = tnn.Conv2d(planes, planes, kernel_size=3, stride=stride,
+#                                 padding=1, bias=False)
+#         self.bn2 = tnn.BatchNorm2d(planes)
+#         self.conv3 = tnn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
+#         self.bn3 = tnn.BatchNorm2d(planes * 4)
+#         self.relu = tnn.ReLU(inplace=True)
+#         self.downsample = downsample
+#         self.stride = stride
+#
+#     ##########nhuk#################################### original one
+#     def forward(self, x):
+#         residual = x
+#
+#         out = self.conv1(x)
+#         out = self.bn1(out)
+#         out = self.relu(out)
+#
+#         out = self.conv2(out)
+#         out = self.bn2(out)
+#         out = self.relu(out)
+#
+#         out = self.conv3(out)
+#         out = self.bn3(out)
+#
+#         if self.downsample is not None:
+#             residual = self.downsample(x)
+#
+#         out += residual
+#         out = self.relu(out)
+#
+#         return out
+#     ##########nhuk####################################
 
 
 class MaxPool2d(nn.Cell):
@@ -324,34 +324,34 @@ def load_ms_resnet50_model(net=None, checkpoint=None):
     return net
 
 
-def t_resnet50(pretrained=None, num_classes=1000, train=True):
-    model = t_ResNet(tBottleneck, [3, 4, 6, 3], num_classes, train)
-    weight = torch.load(pretrained, map_location='cpu')
-    static = model.state_dict()
-
-    base_param = []
-    for name, param in weight.items():
-        if name not in static:
-            continue
-        if isinstance(param, tnn.Parameter):
-            param = param.data
-        static[name].copy_(param)
-        base_param.append(name)
-
-    params = []
-    params_dict = dict(model.named_parameters())
-    for key, v in params_dict.items():
-        if key in base_param:
-            params += [{'params': v, 'lr_mult': 1}]
-        else:
-            # new parameter have larger learning rate
-            params += [{'params': v, 'lr_mult': 10}]
-
-    return model, params
+# def t_resnet50(pretrained=None, num_classes=1000, train=True):
+#     model = t_ResNet(tBottleneck, [3, 4, 6, 3], num_classes, train)
+#     weight = torch.load(pretrained, map_location='cpu')
+#     static = model.state_dict()
+#
+#     base_param = []
+#     for name, param in weight.items():
+#         if name not in static:
+#             continue
+#         if isinstance(param, tnn.Parameter):
+#             param = param.data
+#         static[name].copy_(param)
+#         base_param.append(name)
+#
+#     params = []
+#     params_dict = dict(model.named_parameters())
+#     for key, v in params_dict.items():
+#         if key in base_param:
+#             params += [{'params': v, 'lr_mult': 1}]
+#         else:
+#             # new parameter have larger learning rate
+#             params += [{'params': v, 'lr_mult': 10}]
+#
+#     return model, params
 
 
 def load_torch_model():
-    net, _ = t_resnet50(pretrained="checkpoint/resnet50_market2duke_epoch00100.pth", num_classes=751, train=False) # todo: param1
+    # net, _ = t_resnet50(pretrained="checkpoint/resnet50_market2duke_epoch00100.pth", num_classes=751, train=False) # todo: param1
     # net, _ = t_resnet50(pretrained="checkpoint/resnet50_duke2market_epoch00100.pth", num_classes=702, train=False)
     return net
 
